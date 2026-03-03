@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com.br/lucas-mezencio/pdsi1/internal/config"
 	"github.com.br/lucas-mezencio/pdsi1/internal/domain/doctor"
 	"github.com.br/lucas-mezencio/pdsi1/internal/domain/prescription"
 	"github.com.br/lucas-mezencio/pdsi1/internal/domain/user"
@@ -18,9 +19,14 @@ var migrateOnce sync.Once
 func openTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
+	appConfig, err := config.Load()
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
-		dsn = os.Getenv("DATABASE_URL")
+		dsn = appConfig.DatabaseURL
 	}
 	if dsn == "" {
 		t.Skip("TEST_DATABASE_URL or DATABASE_URL is not set")
@@ -75,17 +81,13 @@ func TestUserRepository_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to find by id: %v", err)
 	}
-	if found.Email != entity.Email {
-		t.Fatalf("expected email %s, got %s", entity.Email, found.Email)
-	}
+	assertUserEqual(t, entity, found)
 
 	foundByEmail, err := repo.FindByEmail(ctx, entity.Email)
 	if err != nil {
 		t.Fatalf("failed to find by email: %v", err)
 	}
-	if foundByEmail.ID != entity.ID {
-		t.Fatalf("expected id %s, got %s", entity.ID, foundByEmail.ID)
-	}
+	assertUserEqual(t, entity, foundByEmail)
 
 	entity.Update("Alice Updated", "alice.updated@example.com", "+200000000")
 	if err := repo.Save(ctx, entity); err != nil {
@@ -99,6 +101,7 @@ func TestUserRepository_CRUD(t *testing.T) {
 	if len(list) != 1 {
 		t.Fatalf("expected 1 user, got %d", len(list))
 	}
+	assertUserEqual(t, entity, list[0])
 
 	exists, err := repo.Exists(ctx, entity.ID)
 	if err != nil {
@@ -136,17 +139,13 @@ func TestDoctorRepository_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to find by id: %v", err)
 	}
-	if found.Email != entity.Email {
-		t.Fatalf("expected email %s, got %s", entity.Email, found.Email)
-	}
+	assertDoctorEqual(t, entity, found)
 
 	byLicense, err := repo.FindByLicenseNumber(ctx, entity.LicenseNumber)
 	if err != nil {
 		t.Fatalf("failed to find by license: %v", err)
 	}
-	if byLicense.ID != entity.ID {
-		t.Fatalf("expected id %s, got %s", entity.ID, byLicense.ID)
-	}
+	assertDoctorEqual(t, entity, byLicense)
 
 	entity.Update("Dr. Updated", "updated@example.com", "111", "General")
 	if err := repo.Save(ctx, entity); err != nil {
@@ -160,6 +159,7 @@ func TestDoctorRepository_CRUD(t *testing.T) {
 	if len(list) != 1 {
 		t.Fatalf("expected 1 doctor, got %d", len(list))
 	}
+	assertDoctorEqual(t, entity, list[0])
 
 	exists, err := repo.Exists(ctx, entity.ID)
 	if err != nil {
@@ -221,12 +221,7 @@ func TestPrescriptionRepository_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to find by id: %v", err)
 	}
-	if found.UserID != usr.ID {
-		t.Fatalf("expected user id %s, got %s", usr.ID, found.UserID)
-	}
-	if len(found.Medicaments) != 1 {
-		t.Fatalf("expected 1 medicament, got %d", len(found.Medicaments))
-	}
+	assertPrescriptionEqual(t, entity, found)
 
 	activeList, err := repo.FindActive(ctx)
 	if err != nil {
@@ -235,6 +230,7 @@ func TestPrescriptionRepository_CRUD(t *testing.T) {
 	if len(activeList) != 1 {
 		t.Fatalf("expected 1 active, got %d", len(activeList))
 	}
+	assertPrescriptionEqual(t, entity, activeList[0])
 
 	byUser, err := repo.FindByUserID(ctx, usr.ID)
 	if err != nil {
@@ -243,6 +239,7 @@ func TestPrescriptionRepository_CRUD(t *testing.T) {
 	if len(byUser) != 1 {
 		t.Fatalf("expected 1 by user, got %d", len(byUser))
 	}
+	assertPrescriptionEqual(t, entity, byUser[0])
 
 	byUserActive, err := repo.FindActiveByUserID(ctx, usr.ID)
 	if err != nil {
@@ -251,6 +248,7 @@ func TestPrescriptionRepository_CRUD(t *testing.T) {
 	if len(byUserActive) != 1 {
 		t.Fatalf("expected 1 active by user, got %d", len(byUserActive))
 	}
+	assertPrescriptionEqual(t, entity, byUserActive[0])
 
 	byMedic, err := repo.FindByMedicID(ctx, doc.ID)
 	if err != nil {
@@ -259,6 +257,7 @@ func TestPrescriptionRepository_CRUD(t *testing.T) {
 	if len(byMedic) != 1 {
 		t.Fatalf("expected 1 by medic, got %d", len(byMedic))
 	}
+	assertPrescriptionEqual(t, entity, byMedic[0])
 
 	all, err := repo.FindAll(ctx)
 	if err != nil {
@@ -267,6 +266,7 @@ func TestPrescriptionRepository_CRUD(t *testing.T) {
 	if len(all) != 1 {
 		t.Fatalf("expected 1 total, got %d", len(all))
 	}
+	assertPrescriptionEqual(t, entity, all[0])
 
 	entity.Medicaments = []prescription.Medicament{{
 		Name:      "Med-2",
@@ -283,9 +283,7 @@ func TestPrescriptionRepository_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to load updated: %v", err)
 	}
-	if len(updated.Medicaments) != 1 || updated.Medicaments[0].Name != "Med-2" {
-		t.Fatal("expected medicaments to be replaced")
-	}
+	assertPrescriptionEqual(t, entity, updated)
 
 	exists, err := repo.Exists(ctx, entity.ID)
 	if err != nil {
@@ -302,5 +300,95 @@ func TestPrescriptionRepository_CRUD(t *testing.T) {
 	_, err = repo.FindByID(ctx, entity.ID)
 	if err == nil {
 		t.Fatal("expected error after delete")
+	}
+}
+
+func assertUserEqual(t *testing.T, expected *user.User, actual *user.User) {
+	t.Helper()
+	if expected.ID != actual.ID {
+		t.Fatalf("expected id %s, got %s", expected.ID, actual.ID)
+	}
+	if expected.Name != actual.Name {
+		t.Fatalf("expected name %s, got %s", expected.Name, actual.Name)
+	}
+	if expected.Email != actual.Email {
+		t.Fatalf("expected email %s, got %s", expected.Email, actual.Email)
+	}
+	if expected.Phone != actual.Phone {
+		t.Fatalf("expected phone %s, got %s", expected.Phone, actual.Phone)
+	}
+	if expected.FirebaseToken != actual.FirebaseToken {
+		t.Fatalf("expected firebase token %s, got %s", expected.FirebaseToken, actual.FirebaseToken)
+	}
+	if expected.NotificationsEnabled != actual.NotificationsEnabled {
+		t.Fatalf("expected notifications enabled %v, got %v", expected.NotificationsEnabled, actual.NotificationsEnabled)
+	}
+}
+
+func assertDoctorEqual(t *testing.T, expected *doctor.Doctor, actual *doctor.Doctor) {
+	t.Helper()
+	if expected.ID != actual.ID {
+		t.Fatalf("expected id %s, got %s", expected.ID, actual.ID)
+	}
+	if expected.Name != actual.Name {
+		t.Fatalf("expected name %s, got %s", expected.Name, actual.Name)
+	}
+	if expected.Email != actual.Email {
+		t.Fatalf("expected email %s, got %s", expected.Email, actual.Email)
+	}
+	if expected.Phone != actual.Phone {
+		t.Fatalf("expected phone %s, got %s", expected.Phone, actual.Phone)
+	}
+	if expected.Specialty != actual.Specialty {
+		t.Fatalf("expected specialty %s, got %s", expected.Specialty, actual.Specialty)
+	}
+	if expected.LicenseNumber != actual.LicenseNumber {
+		t.Fatalf("expected license %s, got %s", expected.LicenseNumber, actual.LicenseNumber)
+	}
+}
+
+func assertPrescriptionEqual(t *testing.T, expected *prescription.Prescription, actual *prescription.Prescription) {
+	t.Helper()
+	if expected.ID != actual.ID {
+		t.Fatalf("expected id %s, got %s", expected.ID, actual.ID)
+	}
+	if expected.UserID != actual.UserID {
+		t.Fatalf("expected user id %s, got %s", expected.UserID, actual.UserID)
+	}
+	if expected.MedicID != actual.MedicID {
+		t.Fatalf("expected medic id %s, got %s", expected.MedicID, actual.MedicID)
+	}
+	if expected.Active != actual.Active {
+		t.Fatalf("expected active %v, got %v", expected.Active, actual.Active)
+	}
+	if len(expected.Medicaments) != len(actual.Medicaments) {
+		t.Fatalf("expected %d medicaments, got %d", len(expected.Medicaments), len(actual.Medicaments))
+	}
+	for i := range expected.Medicaments {
+		assertMedicamentEqual(t, expected.Medicaments[i], actual.Medicaments[i])
+	}
+}
+
+func assertMedicamentEqual(t *testing.T, expected prescription.Medicament, actual prescription.Medicament) {
+	t.Helper()
+	if expected.Name != actual.Name {
+		t.Fatalf("expected medicament name %s, got %s", expected.Name, actual.Name)
+	}
+	if expected.Dosage != actual.Dosage {
+		t.Fatalf("expected dosage %s, got %s", expected.Dosage, actual.Dosage)
+	}
+	if expected.Frequency != actual.Frequency {
+		t.Fatalf("expected frequency %s, got %s", expected.Frequency, actual.Frequency)
+	}
+	if expected.Doses != actual.Doses {
+		t.Fatalf("expected doses %d, got %d", expected.Doses, actual.Doses)
+	}
+	if len(expected.Times) != len(actual.Times) {
+		t.Fatalf("expected %d times, got %d", len(expected.Times), len(actual.Times))
+	}
+	for i := range expected.Times {
+		if expected.Times[i] != actual.Times[i] {
+			t.Fatalf("expected time %s, got %s", expected.Times[i], actual.Times[i])
+		}
 	}
 }
