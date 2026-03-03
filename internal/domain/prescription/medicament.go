@@ -14,6 +14,7 @@ type Medicament struct {
 	Dosage    string   `json:"dosage"`
 	Frequency string   `json:"frequency"` // Duration between doses (e.g., "24:00", "12:00", "08:00")
 	Times     []string `json:"time"`      // Specific times to take medication (e.g., ["08:00", "20:00"])
+	Doses     int      `json:"doses"`     // Total number of doses (e.g., 14 for "twice daily for a week")
 }
 
 // Validate validates the medicament fields
@@ -29,6 +30,9 @@ func (m *Medicament) Validate() error {
 	}
 	if len(m.Times) == 0 {
 		return ErrInvalidTimes
+	}
+	if m.Doses <= 0 {
+		return ErrInvalidDoses
 	}
 
 	// Validate frequency format (HH:MM) - can be up to 24:00
@@ -155,6 +159,41 @@ func (m *Medicament) GetNextNotificationTime(now time.Time) (time.Time, error) {
 	return parseTimeToday(tomorrow, m.Times[0])
 }
 
+// CalculateEndDate calculates when the medicament prescription ends based on start date and total doses
+func (m *Medicament) CalculateEndDate(startDate time.Time) time.Time {
+	if m.Doses <= 0 || len(m.Times) == 0 {
+		return startDate
+	}
+
+	// Calculate how many days needed to complete all doses
+	dosesPerDay := len(m.Times)
+	totalDays := (m.Doses + dosesPerDay - 1) / dosesPerDay // Ceiling division
+
+	// Add days to start date
+	return startDate.AddDate(0, 0, totalDays-1)
+}
+
+// CalculateDaysRemaining calculates how many days remain in the prescription
+func (m *Medicament) CalculateDaysRemaining(startDate time.Time, now time.Time) int {
+	endDate := m.CalculateEndDate(startDate)
+	if now.After(endDate) {
+		return 0
+	}
+
+	duration := endDate.Sub(now)
+	days := int(duration.Hours() / 24)
+	if days < 0 {
+		return 0
+	}
+	return days
+}
+
+// IsCompleted checks if all doses have been taken based on start date and current time
+func (m *Medicament) IsCompleted(startDate time.Time, now time.Time) bool {
+	endDate := m.CalculateEndDate(startDate)
+	return now.After(endDate)
+}
+
 // parseTimeToday parses a time string (HH:MM) and returns it as a time.Time for the given date
 func parseTimeToday(date time.Time, timeStr string) (time.Time, error) {
 	parts := strings.Split(timeStr, ":")
@@ -174,6 +213,7 @@ var (
 	ErrInvalidDosage          = errors.New("invalid dosage")
 	ErrInvalidFrequency       = errors.New("invalid frequency")
 	ErrInvalidTimes           = errors.New("invalid times")
+	ErrInvalidDoses           = errors.New("invalid doses: must be greater than 0")
 	ErrInvalidTimeFormat      = errors.New("time must be in HH:MM format")
 	ErrFrequencyTimesMismatch = errors.New("frequency does not match number of times")
 )

@@ -82,11 +82,36 @@ func (p *Prescription) GetAllNotificationTimes() []NotificationSchedule {
 				MedicamentName: medicament.Name,
 				Dosage:         medicament.Dosage,
 				Time:           timeStr,
+				TotalDoses:     medicament.Doses,
 			})
 		}
 	}
 
 	return schedules
+}
+
+// IsCompleted checks if all medicaments in the prescription have been completed
+func (p *Prescription) IsCompleted(now time.Time) bool {
+	for _, medicament := range p.Medicaments {
+		if !medicament.IsCompleted(p.CreatedAt, now) {
+			return false
+		}
+	}
+	return true
+}
+
+// GetEndDate returns the date when the last medicament in the prescription ends
+func (p *Prescription) GetEndDate() time.Time {
+	var latestEndDate time.Time
+
+	for _, medicament := range p.Medicaments {
+		endDate := medicament.CalculateEndDate(p.CreatedAt)
+		if endDate.After(latestEndDate) {
+			latestEndDate = endDate
+		}
+	}
+
+	return latestEndDate
 }
 
 // NotificationSchedule represents a scheduled notification for a medicament
@@ -96,6 +121,7 @@ type NotificationSchedule struct {
 	MedicamentName string
 	Dosage         string
 	Time           string // HH:MM format
+	TotalDoses     int    // Total number of doses for this medicament
 }
 
 // validatePrescription validates prescription fields
