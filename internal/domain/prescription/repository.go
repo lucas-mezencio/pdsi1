@@ -7,6 +7,9 @@ type Repository interface {
 	// Save creates or updates a prescription
 	Save(ctx context.Context, prescription *Prescription) error
 
+	// FindAll retrieves all prescriptions
+	FindAll(ctx context.Context) ([]*Prescription, error)
+
 	// FindByID retrieves a prescription by ID
 	FindByID(ctx context.Context, id string) (*Prescription, error)
 
