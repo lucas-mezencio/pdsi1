@@ -1,0 +1,962 @@
+openapi: 3.0.3
+info:
+  title: Medication Notification System API
+  description: |
+    API for managing medication prescriptions and sending notifications to elderly users.
+    This system helps users and caretakers manage medication schedules through timely notifications.
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@mednotify.com
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local development server
+  - url: https://api.mednotify.com/v1
+    description: Production server
+
+tags:
+  - name: Users
+    description: User management operations
+  - name: Doctors
+    description: Doctor management operations
+  - name: Prescriptions
+    description: Prescription management and notification scheduling
+
+paths:
+  # User endpoints
+  /users:
+    get:
+      tags:
+        - Users
+      summary: List all users
+      description: Retrieve a list of all registered users
+      operationId: listUsers
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Users
+      summary: Create a new user
+      description: Register a new user in the system
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /users/{userId}:
+    get:
+      tags:
+        - Users
+      summary: Get user by ID
+      description: Retrieve a specific user by their ID
+      operationId: getUserById
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - Users
+      summary: Update user
+      description: Update an existing user's information
+      operationId: updateUser
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Users
+      summary: Delete user
+      description: Remove a user from the system
+      operationId: deleteUser
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204':
+          description: User deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /users/{userId}/firebase-token:
+    patch:
+      tags:
+        - Users
+      summary: Update Firebase token
+      description: Update the user's Firebase token for push notifications
+      operationId: updateFirebaseToken
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - firebase_token
+              properties:
+                firebase_token:
+                  type: string
+                  description: Firebase Cloud Messaging token
+                  example: "fCM_token_abc123xyz"
+      responses:
+        '200':
+          description: Firebase token updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /users/{userId}/notifications:
+    patch:
+      tags:
+        - Users
+      summary: Toggle notifications
+      description: Enable or disable notifications for a user
+      operationId: toggleNotifications
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - enabled
+              properties:
+                enabled:
+                  type: boolean
+                  description: Whether notifications should be enabled
+                  example: true
+      responses:
+        '200':
+          description: Notification settings updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Doctor endpoints
+  /doctors:
+    get:
+      tags:
+        - Doctors
+      summary: List all doctors
+      description: Retrieve a list of all registered doctors
+      operationId: listDoctors
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Doctor'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Doctors
+      summary: Create a new doctor
+      description: Register a new doctor in the system
+      operationId: createDoctor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDoctorRequest'
+      responses:
+        '201':
+          description: Doctor created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Doctor'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /doctors/{doctorId}:
+    get:
+      tags:
+        - Doctors
+      summary: Get doctor by ID
+      description: Retrieve a specific doctor by their ID
+      operationId: getDoctorById
+      parameters:
+        - $ref: '#/components/parameters/DoctorId'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Doctor'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - Doctors
+      summary: Update doctor
+      description: Update an existing doctor's information
+      operationId: updateDoctor
+      parameters:
+        - $ref: '#/components/parameters/DoctorId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDoctorRequest'
+      responses:
+        '200':
+          description: Doctor updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Doctor'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Doctors
+      summary: Delete doctor
+      description: Remove a doctor from the system
+      operationId: deleteDoctor
+      parameters:
+        - $ref: '#/components/parameters/DoctorId'
+      responses:
+        '204':
+          description: Doctor deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Prescription endpoints
+  /prescriptions:
+    post:
+      tags:
+        - Prescriptions
+      summary: Create a new prescription
+      description: |
+        Create a new prescription for a user. This will automatically schedule 
+        notifications based on the medicament times specified.
+      operationId: createPrescription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePrescriptionRequest'
+            examples:
+              once_daily:
+                summary: Once daily medication for 7 days
+                value:
+                  user_id: "550e8400-e29b-41d4-a716-446655440000"
+                  medic_id: "660e8400-e29b-41d4-a716-446655440001"
+                  medicaments:
+                    - name: "Aspirin"
+                      dosage: "100mg"
+                      frequency: "24:00"
+                      time: ["08:00"]
+                      doses: 7
+              twice_daily:
+                summary: Twice daily medication for 7 days
+                value:
+                  user_id: "550e8400-e29b-41d4-a716-446655440000"
+                  medic_id: "660e8400-e29b-41d4-a716-446655440001"
+                  medicaments:
+                    - name: "Lisinopril"
+                      dosage: "10mg"
+                      frequency: "12:00"
+                      time: ["08:00", "20:00"]
+                      doses: 14
+              multiple_medications:
+                summary: Multiple medications with different schedules
+                value:
+                  user_id: "550e8400-e29b-41d4-a716-446655440000"
+                  medic_id: "660e8400-e29b-41d4-a716-446655440001"
+                  medicaments:
+                    - name: "Aspirin"
+                      dosage: "100mg"
+                      frequency: "24:00"
+                      time: ["08:00"]
+                      doses: 30
+                    - name: "Lisinopril"
+                      dosage: "10mg"
+                      frequency: "12:00"
+                      time: ["08:00", "20:00"]
+                      doses: 60
+                    - name: "Metformin"
+                      dosage: "500mg"
+                      frequency: "08:00"
+                      time: ["06:00", "14:00", "22:00"]
+                      doses: 21
+      responses:
+        '201':
+          description: Prescription created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prescription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: User or doctor not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags:
+        - Prescriptions
+      summary: List prescriptions
+      description: Retrieve prescriptions with optional filters
+      operationId: listPrescriptions
+      parameters:
+        - name: user_id
+          in: query
+          description: Filter by user ID
+          schema:
+            type: string
+            format: uuid
+        - name: medic_id
+          in: query
+          description: Filter by doctor ID
+          schema:
+            type: string
+            format: uuid
+        - name: active
+          in: query
+          description: Filter by active status
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Prescription'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /prescriptions/{prescriptionId}:
+    get:
+      tags:
+        - Prescriptions
+      summary: Get prescription by ID
+      description: Retrieve a specific prescription by its ID
+      operationId: getPrescriptionById
+      parameters:
+        - $ref: '#/components/parameters/PrescriptionId'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prescription'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - Prescriptions
+      summary: Update prescription
+      description: |
+        Update an existing prescription's medicaments. This will reschedule 
+        all notifications based on the new medicament times.
+      operationId: updatePrescription
+      parameters:
+        - $ref: '#/components/parameters/PrescriptionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePrescriptionRequest'
+      responses:
+        '200':
+          description: Prescription updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prescription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Prescriptions
+      summary: Delete prescription
+      description: Remove a prescription and cancel all scheduled notifications
+      operationId: deletePrescription
+      parameters:
+        - $ref: '#/components/parameters/PrescriptionId'
+      responses:
+        '204':
+          description: Prescription deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /prescriptions/{prescriptionId}/activate:
+    post:
+      tags:
+        - Prescriptions
+      summary: Activate prescription
+      description: Activate a prescription and resume notifications
+      operationId: activatePrescription
+      parameters:
+        - $ref: '#/components/parameters/PrescriptionId'
+      responses:
+        '200':
+          description: Prescription activated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prescription'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /prescriptions/{prescriptionId}/deactivate:
+    post:
+      tags:
+        - Prescriptions
+      summary: Deactivate prescription
+      description: Deactivate a prescription and pause notifications
+      operationId: deactivatePrescription
+      parameters:
+        - $ref: '#/components/parameters/PrescriptionId'
+      responses:
+        '200':
+          description: Prescription deactivated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prescription'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Health check
+  /health:
+    get:
+      tags:
+        - System
+      summary: Health check
+      description: Check if the API is running
+      operationId: healthCheck
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  timestamp:
+                    type: string
+                    format: date-time
+
+components:
+  parameters:
+    UserId:
+      name: userId
+      in: path
+      required: true
+      description: User ID
+      schema:
+        type: string
+        format: uuid
+
+    DoctorId:
+      name: doctorId
+      in: path
+      required: true
+      description: Doctor ID
+      schema:
+        type: string
+        format: uuid
+
+    PrescriptionId:
+      name: prescriptionId
+      in: path
+      required: true
+      description: Prescription ID
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    # User schemas
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique user identifier
+        name:
+          type: string
+          description: User's full name
+          example: "John Doe"
+        email:
+          type: string
+          format: email
+          description: User's email address
+          example: "john.doe@example.com"
+        phone:
+          type: string
+          description: User's phone number
+          example: "+1234567890"
+        firebase_token:
+          type: string
+          description: Firebase Cloud Messaging token
+          example: "fCM_token_abc123xyz"
+        notifications_enabled:
+          type: boolean
+          description: Whether notifications are enabled for this user
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          description: User creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+      required:
+        - id
+        - name
+        - email
+        - phone
+        - notifications_enabled
+        - created_at
+        - updated_at
+
+    CreateUserRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: User's full name
+          example: "John Doe"
+        email:
+          type: string
+          format: email
+          description: User's email address
+          example: "john.doe@example.com"
+        phone:
+          type: string
+          description: User's phone number
+          example: "+1234567890"
+        firebase_token:
+          type: string
+          description: Firebase Cloud Messaging token
+          example: "fCM_token_abc123xyz"
+      required:
+        - name
+        - email
+        - phone
+        - firebase_token
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: User's full name
+          example: "John Doe"
+        email:
+          type: string
+          format: email
+          description: User's email address
+          example: "john.doe@example.com"
+        phone:
+          type: string
+          description: User's phone number
+          example: "+1234567890"
+      required:
+        - name
+        - email
+        - phone
+
+    # Doctor schemas
+    Doctor:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique doctor identifier
+        name:
+          type: string
+          description: Doctor's full name
+          example: "Dr. Jane Smith"
+        email:
+          type: string
+          format: email
+          description: Doctor's email address
+          example: "jane.smith@hospital.com"
+        phone:
+          type: string
+          description: Doctor's phone number
+          example: "+1234567890"
+        specialty:
+          type: string
+          description: Doctor's medical specialty
+          example: "Cardiology"
+        license_number:
+          type: string
+          description: Medical license number
+          example: "MED-12345"
+        created_at:
+          type: string
+          format: date-time
+          description: Doctor creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+      required:
+        - id
+        - name
+        - email
+        - phone
+        - license_number
+        - created_at
+        - updated_at
+
+    CreateDoctorRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Doctor's full name
+          example: "Dr. Jane Smith"
+        email:
+          type: string
+          format: email
+          description: Doctor's email address
+          example: "jane.smith@hospital.com"
+        phone:
+          type: string
+          description: Doctor's phone number
+          example: "+1234567890"
+        specialty:
+          type: string
+          description: Doctor's medical specialty
+          example: "Cardiology"
+        license_number:
+          type: string
+          description: Medical license number
+          example: "MED-12345"
+      required:
+        - name
+        - email
+        - phone
+        - license_number
+
+    UpdateDoctorRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Doctor's full name
+          example: "Dr. Jane Smith"
+        email:
+          type: string
+          format: email
+          description: Doctor's email address
+          example: "jane.smith@hospital.com"
+        phone:
+          type: string
+          description: Doctor's phone number
+          example: "+1234567890"
+        specialty:
+          type: string
+          description: Doctor's medical specialty
+          example: "Cardiology"
+      required:
+        - name
+        - email
+        - phone
+
+    # Prescription schemas
+    Prescription:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique prescription identifier
+        user_id:
+          type: string
+          format: uuid
+          description: ID of the user this prescription belongs to
+        medic_id:
+          type: string
+          format: uuid
+          description: ID of the doctor who created this prescription
+        medicaments:
+          type: array
+          description: List of medicaments in this prescription
+          items:
+            $ref: '#/components/schemas/Medicament'
+        active:
+          type: boolean
+          description: Whether this prescription is active
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          description: Prescription creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+      required:
+        - id
+        - user_id
+        - medic_id
+        - medicaments
+        - active
+        - created_at
+        - updated_at
+
+    CreatePrescriptionRequest:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          description: ID of the user this prescription is for
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        medic_id:
+          type: string
+          format: uuid
+          description: ID of the doctor creating this prescription
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        medicaments:
+          type: array
+          description: List of medicaments in this prescription
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Medicament'
+      required:
+        - user_id
+        - medic_id
+        - medicaments
+
+    UpdatePrescriptionRequest:
+      type: object
+      properties:
+        medicaments:
+          type: array
+          description: Updated list of medicaments
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Medicament'
+      required:
+        - medicaments
+
+    Medicament:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the medication
+          example: "Aspirin"
+        dosage:
+          type: string
+          description: Dosage amount and unit
+          example: "100mg"
+        frequency:
+          type: string
+          description: |
+            Duration between doses in HH:MM format.
+            - "24:00" = once daily
+            - "12:00" = twice daily (every 12 hours)
+            - "08:00" = three times daily (every 8 hours)
+            - "06:00" = four times daily (every 6 hours)
+          pattern: '^([0-1][0-9]|2[0-4]):[0-5][0-9]$'
+          example: "24:00"
+        time:
+          type: array
+          description: |
+            Specific times to take the medication in HH:MM format (24-hour).
+            The number of times must match the frequency:
+            - frequency "24:00" requires 1 time
+            - frequency "12:00" requires 2 times
+            - frequency "08:00" requires 3 times
+            - frequency "06:00" requires 4 times
+          minItems: 1
+          items:
+            type: string
+            pattern: '^([0-1][0-9]|2[0-3]):[0-5][0-9]$'
+          example: ["08:00"]
+        doses:
+          type: integer
+          minimum: 1
+          description: |
+            Total number of doses for this medicament.
+            This determines when the prescription ends.
+            Examples:
+            - 7 doses with frequency "24:00" = 7 days (once daily for a week)
+            - 14 doses with frequency "12:00" = 7 days (twice daily for a week)
+            - 21 doses with frequency "08:00" = 7 days (three times daily for a week)
+          example: 7
+      required:
+        - name
+        - dosage
+        - frequency
+        - time
+        - doses
+
+    # Error schemas
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Invalid request"
+        details:
+          type: string
+          description: Additional error details
+          example: "Field 'name' is required"
+      required:
+        - error
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Invalid request"
+            details: "Field 'name' is required"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Not found"
+            details: "User with ID '123' not found"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Internal server error"
+            details: "An unexpected error occurred"

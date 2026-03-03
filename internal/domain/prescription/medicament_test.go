@@ -12,32 +12,35 @@ func TestMedicament_Validate(t *testing.T) {
 		wantErr    bool
 	}{
 		{
-			name: "valid medicament - once daily",
+			name: "valid medicament - once daily for 7 days",
 			medicament: Medicament{
 				Name:      "Aspirin",
 				Dosage:    "100mg",
 				Frequency: "24:00",
 				Times:     []string{"08:00"},
+				Doses:     7,
 			},
 			wantErr: false,
 		},
 		{
-			name: "valid medicament - twice daily",
+			name: "valid medicament - twice daily for 7 days",
 			medicament: Medicament{
 				Name:      "Lisinopril",
 				Dosage:    "10mg",
 				Frequency: "12:00",
 				Times:     []string{"08:00", "20:00"},
+				Doses:     14,
 			},
 			wantErr: false,
 		},
 		{
-			name: "valid medicament - three times daily",
+			name: "valid medicament - three times daily for 7 days",
 			medicament: Medicament{
 				Name:      "Example",
 				Dosage:    "100mg",
 				Frequency: "08:00",
 				Times:     []string{"06:00", "14:00", "22:00"},
+				Doses:     21,
 			},
 			wantErr: false,
 		},
@@ -48,6 +51,7 @@ func TestMedicament_Validate(t *testing.T) {
 				Dosage:    "100mg",
 				Frequency: "24:00",
 				Times:     []string{"08:00"},
+				Doses:     7,
 			},
 			wantErr: true,
 		},
@@ -58,6 +62,7 @@ func TestMedicament_Validate(t *testing.T) {
 				Dosage:    "",
 				Frequency: "24:00",
 				Times:     []string{"08:00"},
+				Doses:     7,
 			},
 			wantErr: true,
 		},
@@ -68,6 +73,7 @@ func TestMedicament_Validate(t *testing.T) {
 				Dosage:    "100mg",
 				Frequency: "",
 				Times:     []string{"08:00"},
+				Doses:     7,
 			},
 			wantErr: true,
 		},
@@ -78,6 +84,29 @@ func TestMedicament_Validate(t *testing.T) {
 				Dosage:    "100mg",
 				Frequency: "24:00",
 				Times:     []string{},
+				Doses:     7,
+			},
+			wantErr: true,
+		},
+		{
+			name: "zero doses",
+			medicament: Medicament{
+				Name:      "Aspirin",
+				Dosage:    "100mg",
+				Frequency: "24:00",
+				Times:     []string{"08:00"},
+				Doses:     0,
+			},
+			wantErr: true,
+		},
+		{
+			name: "negative doses",
+			medicament: Medicament{
+				Name:      "Aspirin",
+				Dosage:    "100mg",
+				Frequency: "24:00",
+				Times:     []string{"08:00"},
+				Doses:     -1,
 			},
 			wantErr: true,
 		},
@@ -88,6 +117,7 @@ func TestMedicament_Validate(t *testing.T) {
 				Dosage:    "100mg",
 				Frequency: "24:00",
 				Times:     []string{"8:00"},
+				Doses:     7,
 			},
 			wantErr: true,
 		},
@@ -98,6 +128,7 @@ func TestMedicament_Validate(t *testing.T) {
 				Dosage:    "100mg",
 				Frequency: "24",
 				Times:     []string{"08:00"},
+				Doses:     7,
 			},
 			wantErr: true,
 		},
@@ -108,6 +139,7 @@ func TestMedicament_Validate(t *testing.T) {
 				Dosage:    "100mg",
 				Frequency: "24:00",
 				Times:     []string{"08:00", "20:00"}, // Should be 1 time for 24h frequency
+				Doses:     7,
 			},
 			wantErr: true,
 		},
@@ -167,6 +199,7 @@ func TestMedicament_GetNextNotificationTime(t *testing.T) {
 				Dosage:    "100mg",
 				Frequency: "12:00",
 				Times:     []string{"08:00", "20:00"},
+				Doses:     14,
 			},
 			now:        time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
 			wantHour:   20,
@@ -180,6 +213,7 @@ func TestMedicament_GetNextNotificationTime(t *testing.T) {
 				Dosage:    "100mg",
 				Frequency: "24:00",
 				Times:     []string{"08:00"},
+				Doses:     7,
 			},
 			now:        time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
 			wantHour:   8,
@@ -193,6 +227,7 @@ func TestMedicament_GetNextNotificationTime(t *testing.T) {
 				Dosage:    "100mg",
 				Frequency: "08:00",
 				Times:     []string{"06:00", "14:00", "22:00"},
+				Doses:     21,
 			},
 			now:        time.Date(2024, 1, 1, 5, 0, 0, 0, time.UTC),
 			wantHour:   6,
@@ -222,6 +257,213 @@ func TestMedicament_GetNextNotificationTime(t *testing.T) {
 			}
 			if nextTime.Day() != expectedDay {
 				t.Errorf("expected day %d, got %d", expectedDay, nextTime.Day())
+			}
+		})
+	}
+}
+
+func TestMedicament_CalculateEndDate(t *testing.T) {
+	tests := []struct {
+		name       string
+		medicament Medicament
+		startDate  time.Time
+		wantDays   int // Expected days from start date
+	}{
+		{
+			name: "once daily for 7 days",
+			medicament: Medicament{
+				Name:      "Aspirin",
+				Dosage:    "100mg",
+				Frequency: "24:00",
+				Times:     []string{"08:00"},
+				Doses:     7,
+			},
+			startDate: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			wantDays:  6, // Day 1-7, so end date is 6 days after start
+		},
+		{
+			name: "twice daily for 7 days (14 doses)",
+			medicament: Medicament{
+				Name:      "Lisinopril",
+				Dosage:    "10mg",
+				Frequency: "12:00",
+				Times:     []string{"08:00", "20:00"},
+				Doses:     14,
+			},
+			startDate: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			wantDays:  6, // 14 doses / 2 per day = 7 days
+		},
+		{
+			name: "three times daily for 7 days (21 doses)",
+			medicament: Medicament{
+				Name:      "Metformin",
+				Dosage:    "500mg",
+				Frequency: "08:00",
+				Times:     []string{"06:00", "14:00", "22:00"},
+				Doses:     21,
+			},
+			startDate: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			wantDays:  6, // 21 doses / 3 per day = 7 days
+		},
+		{
+			name: "single dose",
+			medicament: Medicament{
+				Name:      "Emergency Med",
+				Dosage:    "50mg",
+				Frequency: "24:00",
+				Times:     []string{"08:00"},
+				Doses:     1,
+			},
+			startDate: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			wantDays:  0, // Same day
+		},
+		{
+			name: "30 days of once daily",
+			medicament: Medicament{
+				Name:      "Long Term Med",
+				Dosage:    "25mg",
+				Frequency: "24:00",
+				Times:     []string{"08:00"},
+				Doses:     30,
+			},
+			startDate: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			wantDays:  29, // 30 days
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			endDate := tt.medicament.CalculateEndDate(tt.startDate)
+			expectedEndDate := tt.startDate.AddDate(0, 0, tt.wantDays)
+
+			if !endDate.Equal(expectedEndDate) {
+				t.Errorf("CalculateEndDate() = %v, want %v", endDate, expectedEndDate)
+			}
+		})
+	}
+}
+
+func TestMedicament_CalculateDaysRemaining(t *testing.T) {
+	startDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name       string
+		medicament Medicament
+		now        time.Time
+		wantDays   int
+	}{
+		{
+			name: "full 7 days remaining",
+			medicament: Medicament{
+				Name:      "Aspirin",
+				Dosage:    "100mg",
+				Frequency: "24:00",
+				Times:     []string{"08:00"},
+				Doses:     7,
+			},
+			now:      startDate,
+			wantDays: 6,
+		},
+		{
+			name: "3 days remaining",
+			medicament: Medicament{
+				Name:      "Aspirin",
+				Dosage:    "100mg",
+				Frequency: "24:00",
+				Times:     []string{"08:00"},
+				Doses:     7,
+			},
+			now:      startDate.AddDate(0, 0, 3),
+			wantDays: 3,
+		},
+		{
+			name: "prescription ended",
+			medicament: Medicament{
+				Name:      "Aspirin",
+				Dosage:    "100mg",
+				Frequency: "24:00",
+				Times:     []string{"08:00"},
+				Doses:     7,
+			},
+			now:      startDate.AddDate(0, 0, 10),
+			wantDays: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			days := tt.medicament.CalculateDaysRemaining(startDate, tt.now)
+			if days != tt.wantDays {
+				t.Errorf("CalculateDaysRemaining() = %d, want %d", days, tt.wantDays)
+			}
+		})
+	}
+}
+
+func TestMedicament_IsCompleted(t *testing.T) {
+	startDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name       string
+		medicament Medicament
+		now        time.Time
+		want       bool
+	}{
+		{
+			name: "not completed - same day",
+			medicament: Medicament{
+				Name:      "Aspirin",
+				Dosage:    "100mg",
+				Frequency: "24:00",
+				Times:     []string{"08:00"},
+				Doses:     7,
+			},
+			now:  startDate,
+			want: false,
+		},
+		{
+			name: "not completed - middle of prescription",
+			medicament: Medicament{
+				Name:      "Aspirin",
+				Dosage:    "100mg",
+				Frequency: "24:00",
+				Times:     []string{"08:00"},
+				Doses:     7,
+			},
+			now:  startDate.AddDate(0, 0, 3),
+			want: false,
+		},
+		{
+			name: "completed - after end date",
+			medicament: Medicament{
+				Name:      "Aspirin",
+				Dosage:    "100mg",
+				Frequency: "24:00",
+				Times:     []string{"08:00"},
+				Doses:     7,
+			},
+			now:  startDate.AddDate(0, 0, 10),
+			want: true,
+		},
+		{
+			name: "single dose - completed next day",
+			medicament: Medicament{
+				Name:      "Emergency Med",
+				Dosage:    "50mg",
+				Frequency: "24:00",
+				Times:     []string{"08:00"},
+				Doses:     1,
+			},
+			now:  startDate.AddDate(0, 0, 1),
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			completed := tt.medicament.IsCompleted(startDate, tt.now)
+			if completed != tt.want {
+				t.Errorf("IsCompleted() = %v, want %v", completed, tt.want)
 			}
 		})
 	}
