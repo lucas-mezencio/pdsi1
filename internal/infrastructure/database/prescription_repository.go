@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com.br/lucas-mezencio/pdsi1/internal/domain/prescription"
+	"github.com/lib/pq"
 )
 
 // PrescriptionRepository implements prescription.Repository using PostgreSQL.
@@ -197,7 +198,7 @@ func (r *PrescriptionRepository) replaceMedicaments(ctx context.Context, tx *sql
 			m.Name,
 			m.Dosage,
 			m.Frequency,
-			m.Times,
+			pq.Array(m.Times),
 			m.Doses,
 		); err != nil {
 			return err
@@ -228,7 +229,7 @@ func (r *PrescriptionRepository) findMedicaments(ctx context.Context, prescripti
 			&entity.Name,
 			&entity.Dosage,
 			&entity.Frequency,
-			&entity.Times,
+			pq.Array(&entity.Times),
 			&entity.Doses,
 		); err != nil {
 			return nil, err
