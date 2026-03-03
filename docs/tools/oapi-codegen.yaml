@@ -1,0 +1,6 @@
+package: api
+generate:
+  - types
+  - chi-server
+  - spec
+output: internal/api/gen/api.gen.go
