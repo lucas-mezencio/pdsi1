@@ -5,25 +5,25 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com.br/lucas-mezencio/pdsi1/internal/config"
 	"github.com.br/lucas-mezencio/pdsi1/internal/infrastructure/database"
-)
-
-const (
-	defaultAddr = ":8080"
-	defaultDSN  = "postgres://mednotify:mednotify@localhost:5432/mednotify?sslmode=disable"
 )
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	addr := envString("HTTP_ADDR", defaultAddr)
-	dsn := envString("DATABASE_URL", defaultDSN)
+	appConfig, err := config.Load()
+	if err != nil {
+		log.Fatalf("config load failed: %v", err)
+	}
+
+	addr := appConfig.HTTPAddr
+	dsn := appConfig.DatabaseURL
 
 	db, err := database.NewPostgresDB(ctx, dsn)
 	if err != nil {
@@ -68,12 +68,4 @@ func main() {
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Printf("http shutdown failed: %v", err)
 	}
-}
-
-func envString(key, fallback string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return fallback
-	}
-	return value
 }
