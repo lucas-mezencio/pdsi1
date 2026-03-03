@@ -2,13 +2,15 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 	"os/signal"
 	"syscall"
 	"time"
 
+	httpapi "github.com.br/lucas-mezencio/pdsi1/internal/api"
+	"github.com.br/lucas-mezencio/pdsi1/internal/application/commands"
+	"github.com.br/lucas-mezencio/pdsi1/internal/application/queries"
 	"github.com.br/lucas-mezencio/pdsi1/internal/config"
 	"github.com.br/lucas-mezencio/pdsi1/internal/infrastructure/database"
 )
@@ -39,24 +41,37 @@ func main() {
 		log.Fatalf("migration failed: %v", err)
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"status":    "ok",
-			"timestamp": time.Now().UTC().Format(time.RFC3339),
-		})
-	})
+	userRepo := database.NewUserRepository(db)
+	doctorRepo := database.NewDoctorRepository(db)
+	prescriptionRepo := database.NewPrescriptionRepository(db)
 
-	server := &http.Server{
+	userCommands := commands.NewUserCommandHandler(userRepo)
+	userQueries := queries.NewUserQueryHandler(userRepo)
+	doctorCommands := commands.NewDoctorCommandHandler(doctorRepo)
+	doctorQueries := queries.NewDoctorQueryHandler(doctorRepo)
+	prescriptionCommands := commands.NewPrescriptionCommandHandler(prescriptionRepo, userRepo, doctorRepo, nil)
+	prescriptionQueries := queries.NewPrescriptionQueryHandler(prescriptionRepo)
+
+	apiServer := httpapi.NewServer(
+		userCommands,
+		userQueries,
+		doctorCommands,
+		doctorQueries,
+		prescriptionCommands,
+		prescriptionQueries,
+	)
+
+	handler := httpapi.NewRouter(apiServer)
+
+	httpServer := &http.Server{
 		Addr:              addr,
-		Handler:           mux,
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	go func() {
 		log.Printf("http listening on %s", addr)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("http server failed: %v", err)
 		}
 	}()
@@ -65,7 +80,7 @@ func main() {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := server.Shutdown(shutdownCtx); err != nil {
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		log.Printf("http shutdown failed: %v", err)
 	}
 }

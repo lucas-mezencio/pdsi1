@@ -343,7 +343,7 @@ type ServerInterface interface {
 	// (PATCH /users/{userId}/firebase-token)
 	UpdateFirebaseToken(w http.ResponseWriter, r *http.Request, userId UserId)
 	// Toggle notifications
-	// (POST /users/{userId}/notifications)
+	// (PATCH /users/{userId}/notifications)
 	ToggleNotifications(w http.ResponseWriter, r *http.Request, userId UserId)
 }
 
@@ -466,7 +466,7 @@ func (_ Unimplemented) UpdateFirebaseToken(w http.ResponseWriter, r *http.Reques
 }
 
 // Toggle notifications
-// (POST /users/{userId}/notifications)
+// (PATCH /users/{userId}/notifications)
 func (_ Unimplemented) ToggleNotifications(w http.ResponseWriter, r *http.Request, userId UserId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
@@ -1103,7 +1103,7 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Patch(options.BaseURL+"/users/{userId}/firebase-token", wrapper.UpdateFirebaseToken)
 	})
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/users/{userId}/notifications", wrapper.ToggleNotifications)
+		r.Patch(options.BaseURL+"/users/{userId}/notifications", wrapper.ToggleNotifications)
 	})
 
 	return r
@@ -1162,10 +1162,10 @@ var swaggerSpec = []string{
 	"zf2X6fTE1e706kuSlGQ3hOjdpzfzTD269J/MkND99ejrI4MPnAgblnbkkDvenbfDW032V9o2+m7+t0W/",
 	"vFKLQ7+evBWIzWys/ecc/RJFTf4dTRA7yL5BQqhJvaYPr8DeKgXspnN471qzgylfSWsn1atZyp4pXmEm",
 	"Hdf33u+uG/eVe21sZcOHsbKPJ8fqbZBH5WDzXjXYnGMZJZ2iWH7Q8kSgauZZb9Ul9rwQyZpA2cAp9360",
-	"49EPLqVue/+hx7sbc8Fr/4nBbihJg+GPR13ci/VTHFfKOzPLN3qQWzcBiNA/3WLbsgfd0pSP7PIyhXcN",
-	"bfrBmrLhrL9IWJHG6KKa+F8/49/84N7u21WlcGbJBUjlpMVj0A0jfi1r3lINtUkD8c34vGURTlEMV5Cy",
-	"XFeQzdpgEBQ8DWZBImU+G41StS5hQs5ehC/CEc7J6GoctMdq3nMWF5GldQuQmI3U1qHziYMGdFYh7g3w",
-	"zRcGGr9KB8WyX2vu2sbGTuqt2V1Ou/luU6uw1KBg6vbNynaaGXmzYN3axs3Zzf8CAAD//+e0cdClUQAA",
+	"49EPLqVue/+hx7sbc8Fr/4nBbihJg+GPR13ci/VTHFfKu/XmjZ7k1l0AIvRPt9q2bEK3VOUju7xM4V1D",
+	"nX6wqmw47C8SVqQxuqhG/tcP+Te/uLf7dlUrnGFyAVJ5afEYlMOIX8uct3RDbdJAfEM+b1mEUxTDFaQs",
+	"1yVkszYYBAVPg1mQSJnPRqNUrUuYkLMX4YtwhHMyuhoH7bma95zFRWRp3QIkZiO1deh846ABnVWIeyN8",
+	"84mBxq/SQbFs2Jq7trGxo3prdpfjbr7b1EosNSiYuo2zsp9mZt4sWLe4cXN2878AAAD//8nFDRmmUQAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
