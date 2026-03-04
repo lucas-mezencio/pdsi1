@@ -142,7 +142,7 @@ func (w *SchedulerWorker) jobsKey() string {
 	return fmt.Sprintf("%s:notification_jobs", w.keyPrefix)
 }
 
-func StartNotificationConsumer(ctx context.Context, subscriber message.Subscriber, sender notification.Sender, userRepo user.Repository) error {
+func StartNotificationConsumer(ctx context.Context, subscriber message.Subscriber, sender notification.Sender, userRepo user.Repository, cleanup CleanupStore) error {
 	if subscriber == nil {
 		return errors.New("subscriber is required")
 	}
@@ -151,6 +151,9 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 	}
 	if userRepo == nil {
 		return errors.New("user repository is required")
+	}
+	if cleanup == nil {
+		cleanup = &noopCleanup{}
 	}
 
 	messages, err := subscriber.Subscribe(ctx, NotificationTopic)
@@ -178,6 +181,9 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 			if err != nil {
 				if errors.Is(err, user.ErrUserNotFound) {
 					log.Printf("notification user not found: %s", job.UserID)
+					if err := cleanup.Delete(ctx, job.ID); err != nil {
+						log.Printf("notification cleanup failed: %v", err)
+					}
 					msg.Ack()
 					continue
 				}
@@ -202,5 +208,14 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 
 			msg.Ack()
 		}
+	}
+}
+
+func (w *SchedulerWorker) deleteJob(ctx context.Context, jobID string) {
+	pipeline := w.client.TxPipeline()
+	pipeline.ZRem(ctx, w.scheduleKey(), jobID)
+	pipeline.HDel(ctx, w.jobsKey(), jobID)
+	if _, err := pipeline.Exec(ctx); err != nil {
+		log.Printf("notification job delete failed: %v", err)
 	}
 }

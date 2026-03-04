@@ -118,7 +118,8 @@ func main() {
 			return
 		}
 
-		if err := scheduler.StartNotificationConsumer(ctx, subscriber, sender, userRepo); err != nil && err != context.Canceled {
+		cleanup := scheduler.NewRedisCleanupStore(redisClient, "")
+		if err := scheduler.StartNotificationConsumer(ctx, subscriber, sender, userRepo, cleanup); err != nil && err != context.Canceled {
 			log.Printf("notification consumer stopped: %v", err)
 		}
 	}()
