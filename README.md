@@ -93,6 +93,15 @@ You can override the API URL with:
 API_BASE_URL=http://localhost:8080/api/v1 go run ./cmd/fakefirebasesub
 ```
 
+## Integration Test (build tag)
+
+The integration test that wires API + Postgres + Redis lives under `tests/` and only runs with a build tag:
+
+```bash
+docker compose up -d postgres redis
+go test -tags=integration ./tests -run TestFakeFirebaseIntegration
+```
+
 ## Environment
 
 Defaults are in `.env`:

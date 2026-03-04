@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -41,10 +42,15 @@ func main() {
 
 	appConfig, err := config.Load()
 	if err != nil {
-		panic(fmt.Errorf("config load failed: %w", err))
+		log.Printf("config load failed: %v", err)
+		return
 	}
 
 	baseURL := envString("API_BASE_URL", defaultAPIBaseURL)
+	if err := waitForAPI(ctx, baseURL+"/health"); err != nil {
+		log.Printf("api not ready: %v", err)
+		return
+	}
 
 	userPayload := map[string]any{
 		"name":           "Test User",
@@ -54,11 +60,13 @@ func main() {
 	}
 	userBytes, err := doJSON(ctx, http.MethodPost, baseURL+"/users", userPayload)
 	if err != nil {
-		panic(err)
+		log.Printf("create user failed: %v", err)
+		return
 	}
 	var userResp createUserResponse
 	if err := json.Unmarshal(userBytes, &userResp); err != nil {
-		panic(fmt.Errorf("decode user response: %w", err))
+		log.Printf("decode user response failed: %v", err)
+		return
 	}
 	printJSON("Created user", userBytes)
 
@@ -71,11 +79,13 @@ func main() {
 	}
 	doctorBytes, err := doJSON(ctx, http.MethodPost, baseURL+"/doctors", doctorPayload)
 	if err != nil {
-		panic(err)
+		log.Printf("create doctor failed: %v", err)
+		return
 	}
 	var doctorResp createDoctorResponse
 	if err := json.Unmarshal(doctorBytes, &doctorResp); err != nil {
-		panic(fmt.Errorf("decode doctor response: %w", err))
+		log.Printf("decode doctor response failed: %v", err)
+		return
 	}
 	printJSON("Created doctor", doctorBytes)
 
@@ -99,11 +109,13 @@ func main() {
 	}
 	prescriptionBytes, err := doJSON(ctx, http.MethodPost, baseURL+"/prescriptions", prescriptionPayload)
 	if err != nil {
-		panic(err)
+		log.Printf("create prescription failed: %v", err)
+		return
 	}
 	var prescriptionResp createPrescriptionResponse
 	if err := json.Unmarshal(prescriptionBytes, &prescriptionResp); err != nil {
-		panic(fmt.Errorf("decode prescription response: %w", err))
+		log.Printf("decode prescription response failed: %v", err)
+		return
 	}
 	printJSON("Created prescription", prescriptionBytes)
 
@@ -122,17 +134,20 @@ func main() {
 	}
 	prescriptionSecondBytes, err := doJSON(ctx, http.MethodPost, baseURL+"/prescriptions", prescriptionSecondPayload)
 	if err != nil {
-		panic(err)
+		log.Printf("create second prescription failed: %v", err)
+		return
 	}
 	var prescriptionSecondResp createPrescriptionResponse
 	if err := json.Unmarshal(prescriptionSecondBytes, &prescriptionSecondResp); err != nil {
-		panic(fmt.Errorf("decode prescription response: %w", err))
+		log.Printf("decode second prescription response failed: %v", err)
+		return
 	}
 	printJSON("Created prescription", prescriptionSecondBytes)
 
 	listBytes, err := doJSON(ctx, http.MethodGet, baseURL+"/prescriptions?user_id="+userResp.ID, nil)
 	if err != nil {
-		panic(err)
+		log.Printf("list prescriptions failed: %v", err)
+		return
 	}
 	printJSON("Prescriptions for user", listBytes)
 
@@ -141,7 +156,8 @@ func main() {
 
 	redisClient := redis.NewClient(&redis.Options{Addr: appConfig.RedisAddr})
 	if err := redisClient.Ping(ctx).Err(); err != nil {
-		panic(fmt.Errorf("redis connect failed: %w", err))
+		log.Printf("redis connect failed: %v", err)
+		return
 	}
 	defer redisClient.Close()
 
@@ -154,25 +170,29 @@ func main() {
 		OldestId:      "$",
 	}, &logger)
 	if err != nil {
-		panic(fmt.Errorf("subscriber init failed: %w", err))
+		log.Printf("subscriber init failed: %v", err)
+		return
 	}
 	defer subscriber.Close()
 
 	messages, err := subscriber.Subscribe(ctx, scheduler.NotificationTopic)
 	if err != nil {
-		panic(fmt.Errorf("subscribe failed: %w", err))
+		log.Printf("subscribe failed: %v", err)
+		return
 	}
 
 	fmt.Println("Listening for notifications...")
 	for i := 0; i < 22; i++ {
 		select {
 		case <-ctx.Done():
-			panic(fmt.Errorf("timed out waiting for notifications: %w", ctx.Err()))
+			log.Printf("timed out waiting for notifications: %v", ctx.Err())
+			return
 		case msg := <-messages:
 			var job scheduler.NotificationJob
 			if err := json.Unmarshal(msg.Payload, &job); err != nil {
 				msg.Nack()
-				panic(fmt.Errorf("decode notification job: %w", err))
+				log.Printf("decode notification job failed: %v", err)
+				return
 			}
 			fmt.Printf("fakefirebasesub: %s %s %s at %s\n", job.UserID, job.MedicamentName, job.Dosage, job.ScheduledAt.Format(time.RFC3339))
 			msg.Ack()
@@ -222,6 +242,31 @@ func printJSON(label string, payload []byte) {
 		return
 	}
 	fmt.Printf("%s:\n%s\n", label, pretty.String())
+}
+
+func waitForAPI(ctx context.Context, url string) error {
+	ticker := time.NewTicker(300 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+			if err != nil {
+				return err
+			}
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				continue
+			}
+			_ = resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				return nil
+			}
+		}
+	}
 }
 
 func expectedTimes(start time.Time, count int, interval ...time.Duration) string {
