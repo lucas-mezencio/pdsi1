@@ -106,7 +106,7 @@ func TestRedisScheduler_SchedulesNotifications(t *testing.T) {
 		t.Fatalf("schedule failed: %v", err)
 	}
 
-	worker := NewSchedulerWorker(client, publisher, defaultKeyPrefix)
+	worker := NewSchedulerWorker(client, publisher, defaultKeyPrefix, 2*time.Hour, nil)
 	worker.SetPollInterval(50 * time.Millisecond)
 
 	workerCtx, workerCancel := context.WithCancel(ctx)

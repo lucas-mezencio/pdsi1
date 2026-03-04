@@ -87,13 +87,14 @@ func main() {
 	userRepo := database.NewUserRepository(db)
 	doctorRepo := database.NewDoctorRepository(db)
 	prescriptionRepo := database.NewPrescriptionRepository(db)
+	eventStore := database.NewNotificationEventStore(db)
 
 	schedulerAdapter, err := scheduler.NewRedisScheduler(scheduler.RedisSchedulerConfig{Client: redisClient})
 	if err != nil {
 		log.Fatalf("scheduler init failed: %v", err)
 	}
 
-	worker := scheduler.NewSchedulerWorker(redisClient, publisher, "")
+	worker := scheduler.NewSchedulerWorker(redisClient, publisher, "", appConfig.NotificationLookback, eventStore)
 	go func() {
 		if err := worker.Run(ctx); err != nil && err != context.Canceled {
 			log.Printf("scheduler worker stopped: %v", err)

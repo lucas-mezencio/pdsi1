@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/ThreeDotsLabs/watermill/message"
@@ -23,11 +24,19 @@ type SchedulerWorker struct {
 	publisher    message.Publisher
 	keyPrefix    string
 	pollInterval time.Duration
+	lookback     time.Duration
+	store        EventStore
 }
 
-func NewSchedulerWorker(client redis.UniversalClient, publisher message.Publisher, keyPrefix string) *SchedulerWorker {
+func NewSchedulerWorker(client redis.UniversalClient, publisher message.Publisher, keyPrefix string, lookback time.Duration, store EventStore) *SchedulerWorker {
 	if keyPrefix == "" {
 		keyPrefix = defaultKeyPrefix
+	}
+	if lookback <= 0 {
+		lookback = 2 * time.Hour
+	}
+	if store == nil {
+		store = &noopEventStore{}
 	}
 
 	return &SchedulerWorker{
@@ -35,6 +44,8 @@ func NewSchedulerWorker(client redis.UniversalClient, publisher message.Publishe
 		publisher:    publisher,
 		keyPrefix:    keyPrefix,
 		pollInterval: defaultPollInterval,
+		lookback:     lookback,
+		store:        store,
 	}
 }
 
@@ -68,8 +79,9 @@ func (w *SchedulerWorker) Run(ctx context.Context) error {
 
 func (w *SchedulerWorker) dispatchDue(ctx context.Context) error {
 	deadline := time.Now().UnixNano()
+	from := time.Now().Add(-w.lookback).UnixNano()
 	jobIDs, err := w.client.ZRangeByScore(ctx, w.scheduleKey(), &redis.ZRangeBy{
-		Min: "-inf",
+		Min: fmt.Sprintf("%d", from),
 		Max: fmt.Sprintf("%d", deadline),
 	}).Result()
 	if err != nil {
@@ -86,9 +98,29 @@ func (w *SchedulerWorker) dispatchDue(ctx context.Context) error {
 			return fmt.Errorf("load job payload: %w", err)
 		}
 
+		var job NotificationJob
+		if err := json.Unmarshal([]byte(payload), &job); err != nil {
+			log.Printf("notification job decode failed: %v", err)
+			_ = w.client.ZRem(ctx, w.scheduleKey(), jobID).Err()
+			_ = w.client.HDel(ctx, w.jobsKey(), jobID).Err()
+			continue
+		}
+
 		msg := message.NewMessage(jobID, []byte(payload))
 		if err := w.publisher.Publish(NotificationTopic, msg); err != nil {
 			return fmt.Errorf("publish notification: %w", err)
+		}
+
+		if err := w.store.Save(ctx, NotificationEvent{
+			ID:             job.ID,
+			PrescriptionID: job.PrescriptionID,
+			UserID:         job.UserID,
+			MedicamentName: job.MedicamentName,
+			Dosage:         job.Dosage,
+			ScheduledAt:    job.ScheduledAt,
+			SentAt:         time.Now(),
+		}); err != nil {
+			log.Printf("notification event save failed: %v", err)
 		}
 
 		pipeline := w.client.TxPipeline()
@@ -137,14 +169,21 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 
 			var job NotificationJob
 			if err := json.Unmarshal(msg.Payload, &job); err != nil {
-				msg.Nack()
-				return fmt.Errorf("decode notification job: %w", err)
+				log.Printf("notification decode failed: %v", err)
+				msg.Ack()
+				continue
 			}
 
 			userEntity, err := userRepo.FindByID(ctx, job.UserID)
 			if err != nil {
+				if errors.Is(err, user.ErrUserNotFound) {
+					log.Printf("notification user not found: %s", job.UserID)
+					msg.Ack()
+					continue
+				}
+				log.Printf("notification load user failed: %v", err)
 				msg.Nack()
-				return fmt.Errorf("load user: %w", err)
+				continue
 			}
 
 			note := notification.Notification{
@@ -156,8 +195,9 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 				FirebaseToken:  userEntity.FirebaseToken,
 			}
 			if err := sender.Send(ctx, note); err != nil {
+				log.Printf("notification send failed: %v", err)
 				msg.Nack()
-				return fmt.Errorf("send notification: %w", err)
+				continue
 			}
 
 			msg.Ack()

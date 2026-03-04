@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // Config holds application configuration values.
@@ -14,13 +15,15 @@ type Config struct {
 	RedisAddr               string
 	NotifierMode            string
 	FirebaseCredentialsFile string
+	NotificationLookback    time.Duration
 }
 
 const (
-	defaultAddr         = ":8080"
-	defaultDSN          = "postgres://mednotify:mednotify@localhost:5432/mednotify?sslmode=disable"
-	defaultRedisAddr    = "localhost:6379"
-	defaultNotifierMode = "dev"
+	defaultAddr                 = ":8080"
+	defaultDSN                  = "postgres://mednotify:mednotify@localhost:5432/mednotify?sslmode=disable"
+	defaultRedisAddr            = "localhost:6379"
+	defaultNotifierMode         = "dev"
+	defaultNotificationLookback = 2 * time.Hour
 )
 
 // Load loads configuration from .env (if present) and environment variables.
@@ -33,6 +36,7 @@ func Load() (*Config, error) {
 		RedisAddr:               envString("REDIS_ADDR", defaultRedisAddr),
 		NotifierMode:            envString("NOTIFIER_MODE", defaultNotifierMode),
 		FirebaseCredentialsFile: envString("FIREBASE_CREDENTIALS_FILE", ""),
+		NotificationLookback:    defaultNotificationLookback,
 	}, nil
 }
 
