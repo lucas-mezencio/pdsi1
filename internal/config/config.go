@@ -9,15 +9,18 @@ import (
 
 // Config holds application configuration values.
 type Config struct {
-	DatabaseURL string
-	HTTPAddr    string
-	RedisAddr   string
+	DatabaseURL             string
+	HTTPAddr                string
+	RedisAddr               string
+	NotifierMode            string
+	FirebaseCredentialsFile string
 }
 
 const (
-	defaultAddr      = ":8080"
-	defaultDSN       = "postgres://mednotify:mednotify@localhost:5432/mednotify?sslmode=disable"
-	defaultRedisAddr = "localhost:6379"
+	defaultAddr         = ":8080"
+	defaultDSN          = "postgres://mednotify:mednotify@localhost:5432/mednotify?sslmode=disable"
+	defaultRedisAddr    = "localhost:6379"
+	defaultNotifierMode = "dev"
 )
 
 // Load loads configuration from .env (if present) and environment variables.
@@ -25,9 +28,11 @@ func Load() (*Config, error) {
 	_ = loadDotEnv(".env")
 
 	return &Config{
-		DatabaseURL: envString("DATABASE_URL", defaultDSN),
-		HTTPAddr:    envString("HTTP_ADDR", defaultAddr),
-		RedisAddr:   envString("REDIS_ADDR", defaultRedisAddr),
+		DatabaseURL:             envString("DATABASE_URL", defaultDSN),
+		HTTPAddr:                envString("HTTP_ADDR", defaultAddr),
+		RedisAddr:               envString("REDIS_ADDR", defaultRedisAddr),
+		NotifierMode:            envString("NOTIFIER_MODE", defaultNotifierMode),
+		FirebaseCredentialsFile: envString("FIREBASE_CREDENTIALS_FILE", ""),
 	}, nil
 }
 

@@ -10,6 +10,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/redis/go-redis/v9"
 
+	"github.com.br/lucas-mezencio/pdsi1/internal/domain/user"
 	"github.com.br/lucas-mezencio/pdsi1/internal/infrastructure/notification"
 )
 
@@ -50,7 +51,6 @@ func (w *SchedulerWorker) Run(ctx context.Context) error {
 	if w.publisher == nil {
 		return errors.New("publisher is required")
 	}
-
 	ticker := time.NewTicker(w.pollInterval)
 	defer ticker.Stop()
 
@@ -110,12 +110,15 @@ func (w *SchedulerWorker) jobsKey() string {
 	return fmt.Sprintf("%s:notification_jobs", w.keyPrefix)
 }
 
-func StartNotificationConsumer(ctx context.Context, subscriber message.Subscriber, sender notification.Sender) error {
+func StartNotificationConsumer(ctx context.Context, subscriber message.Subscriber, sender notification.Sender, userRepo user.Repository) error {
 	if subscriber == nil {
 		return errors.New("subscriber is required")
 	}
 	if sender == nil {
 		return errors.New("sender is required")
+	}
+	if userRepo == nil {
+		return errors.New("user repository is required")
 	}
 
 	messages, err := subscriber.Subscribe(ctx, NotificationTopic)
@@ -138,12 +141,19 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 				return fmt.Errorf("decode notification job: %w", err)
 			}
 
+			userEntity, err := userRepo.FindByID(ctx, job.UserID)
+			if err != nil {
+				msg.Nack()
+				return fmt.Errorf("load user: %w", err)
+			}
+
 			note := notification.Notification{
 				UserID:         job.UserID,
 				PrescriptionID: job.PrescriptionID,
 				MedicamentName: job.MedicamentName,
 				Dosage:         job.Dosage,
 				ScheduledAt:    job.ScheduledAt.Format(time.RFC3339),
+				FirebaseToken:  userEntity.FirebaseToken,
 			}
 			if err := sender.Send(ctx, note); err != nil {
 				msg.Nack()

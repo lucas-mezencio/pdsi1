@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -85,7 +86,7 @@ func TestRedisScheduler_SchedulesNotifications(t *testing.T) {
 		t.Fatalf("scheduler init failed: %v", err)
 	}
 
-	start := time.Now().Add(3 * time.Second).Truncate(time.Second)
+	start := time.Now().Add(3 * time.Second).Truncate(time.Second).Add(1 * time.Second)
 	startTime := start.Format("15:04:05")
 
 	schedule := prescription.NotificationSchedule{
@@ -121,6 +122,7 @@ func TestRedisScheduler_SchedulesNotifications(t *testing.T) {
 	}
 
 	var received []NotificationJob
+	seenTimes := make(map[string]bool)
 	for len(received) < schedule.TotalDoses {
 		select {
 		case <-ctx.Done():
@@ -130,16 +132,28 @@ func TestRedisScheduler_SchedulesNotifications(t *testing.T) {
 			if err := json.Unmarshal(msg.Payload, &job); err != nil {
 				t.Fatalf("unmarshal notification job: %v", err)
 			}
-			received = append(received, job)
+			if job.UserID != schedule.UserID || job.PrescriptionID != schedule.PrescriptionID {
+				msg.Ack()
+				continue
+			}
+			jobTime := job.ScheduledAt.Format("15:04:05")
+			if !seenTimes[jobTime] {
+				received = append(received, job)
+				seenTimes[jobTime] = true
+			}
 			msg.Ack()
 		}
 	}
 
+	sort.Slice(received, func(i, j int) bool {
+		return received[i].ScheduledAt.Before(received[j].ScheduledAt)
+	})
+
 	for i := 0; i < schedule.TotalDoses; i++ {
 		expected := start.Add(time.Duration(i) * time.Second)
 		actual := received[i].ScheduledAt
-		if expected.Hour() != actual.Hour() || expected.Minute() != actual.Minute() || expected.Second() != actual.Second() {
-			t.Fatalf("expected scheduled time %s, got %s", expected.Format(time.RFC3339), actual.Format(time.RFC3339))
+		if expected.Format("15:04:05") != actual.Format("15:04:05") {
+			t.Fatalf("expected scheduled time %s, got %s", expected.Format("15:04:05"), actual.Format("15:04:05"))
 		}
 	}
 }

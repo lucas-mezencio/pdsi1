@@ -84,6 +84,10 @@ func main() {
 		}
 	}()
 
+	userRepo := database.NewUserRepository(db)
+	doctorRepo := database.NewDoctorRepository(db)
+	prescriptionRepo := database.NewPrescriptionRepository(db)
+
 	schedulerAdapter, err := scheduler.NewRedisScheduler(scheduler.RedisSchedulerConfig{Client: redisClient})
 	if err != nil {
 		log.Fatalf("scheduler init failed: %v", err)
@@ -97,15 +101,26 @@ func main() {
 	}()
 
 	go func() {
-		sender := &notification.DummySender{}
-		if err := scheduler.StartNotificationConsumer(ctx, subscriber, sender); err != nil && err != context.Canceled {
+		var sender notification.Sender
+		switch appConfig.NotifierMode {
+		case "dev":
+			sender = &notification.DummySender{}
+		case "ready", "":
+			firebaseSender, err := notification.NewFirebaseSender(ctx, appConfig.FirebaseCredentialsFile)
+			if err != nil {
+				log.Printf("firebase sender init failed: %v", err)
+				return
+			}
+			sender = firebaseSender
+		default:
+			log.Printf("unknown notifier mode: %s", appConfig.NotifierMode)
+			return
+		}
+
+		if err := scheduler.StartNotificationConsumer(ctx, subscriber, sender, userRepo); err != nil && err != context.Canceled {
 			log.Printf("notification consumer stopped: %v", err)
 		}
 	}()
-
-	userRepo := database.NewUserRepository(db)
-	doctorRepo := database.NewDoctorRepository(db)
-	prescriptionRepo := database.NewPrescriptionRepository(db)
 
 	userCommands := commands.NewUserCommandHandler(userRepo)
 	userQueries := queries.NewUserQueryHandler(userRepo)

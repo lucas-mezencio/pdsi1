@@ -13,4 +13,5 @@ type Notification struct {
 	MedicamentName string
 	Dosage         string
 	ScheduledAt    string
+	FirebaseToken  string
 }
