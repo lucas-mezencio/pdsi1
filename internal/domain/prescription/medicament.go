@@ -58,7 +58,7 @@ func (m *Medicament) Validate() error {
 // validateTimeFormat validates that a time string is in HH:MM format (00:00-23:59)
 func validateTimeFormat(timeStr string) error {
 	parts := strings.Split(timeStr, ":")
-	if len(parts) != 2 {
+	if len(parts) != 2 && len(parts) != 3 {
 		return ErrInvalidTimeFormat
 	}
 
@@ -82,13 +82,26 @@ func validateTimeFormat(timeStr string) error {
 		return ErrInvalidTimeFormat
 	}
 
+	if len(parts) == 2 {
+		return nil
+	}
+
+	if len(parts[2]) != 2 {
+		return ErrInvalidTimeFormat
+	}
+
+	seconds, err := strconv.Atoi(parts[2])
+	if err != nil || seconds < 0 || seconds > 59 {
+		return ErrInvalidTimeFormat
+	}
+
 	return nil
 }
 
 // validateFrequencyFormat validates frequency format (can be 00:00 to 24:00)
 func validateFrequencyFormat(freqStr string) error {
 	parts := strings.Split(freqStr, ":")
-	if len(parts) != 2 {
+	if len(parts) != 2 && len(parts) != 3 {
 		return ErrInvalidTimeFormat
 	}
 
@@ -112,8 +125,19 @@ func validateFrequencyFormat(freqStr string) error {
 		return ErrInvalidTimeFormat
 	}
 
+	seconds := 0
+	if len(parts) == 3 {
+		if len(parts[2]) != 2 {
+			return ErrInvalidTimeFormat
+		}
+		seconds, err = strconv.Atoi(parts[2])
+		if err != nil || seconds < 0 || seconds > 59 {
+			return ErrInvalidTimeFormat
+		}
+	}
+
 	// If hours is 24, minutes must be 00
-	if hours == 24 && minutes != 0 {
+	if hours == 24 && (minutes != 0 || seconds != 0) {
 		return ErrInvalidTimeFormat
 	}
 
@@ -122,11 +146,14 @@ func validateFrequencyFormat(freqStr string) error {
 
 // validateFrequencyConsistency checks if frequency matches the number of times per day
 func (m *Medicament) validateFrequencyConsistency() error {
-	freqParts := strings.Split(m.Frequency, ":")
-	freqHours, _ := strconv.Atoi(freqParts[0])
-	freqMinutes, _ := strconv.Atoi(freqParts[1])
+	if len(m.Times) == 1 || m.Doses == len(m.Times) {
+		return nil
+	}
 
-	frequencyDuration := time.Duration(freqHours)*time.Hour + time.Duration(freqMinutes)*time.Minute
+	frequencyDuration, err := parseClockDuration(m.Frequency)
+	if err != nil {
+		return err
+	}
 
 	// Calculate expected number of doses per day
 	expectedDoses := int(24 * time.Hour / frequencyDuration)
@@ -196,15 +223,88 @@ func (m *Medicament) IsCompleted(startDate time.Time, now time.Time) bool {
 
 // parseTimeToday parses a time string (HH:MM) and returns it as a time.Time for the given date
 func parseTimeToday(date time.Time, timeStr string) (time.Time, error) {
-	parts := strings.Split(timeStr, ":")
-	hours, _ := strconv.Atoi(parts[0])
-	minutes, _ := strconv.Atoi(parts[1])
+	hours, minutes, seconds, err := parseClockTime(timeStr)
+	if err != nil {
+		return time.Time{}, err
+	}
 
 	return time.Date(
 		date.Year(), date.Month(), date.Day(),
-		hours, minutes, 0, 0,
+		hours, minutes, seconds, 0,
 		date.Location(),
 	), nil
+}
+
+func parseClockTime(value string) (int, int, int, error) {
+	parts := strings.Split(value, ":")
+	if len(parts) != 2 && len(parts) != 3 {
+		return 0, 0, 0, ErrInvalidTimeFormat
+	}
+
+	if len(parts[0]) != 2 || len(parts[1]) != 2 {
+		return 0, 0, 0, ErrInvalidTimeFormat
+	}
+
+	hours, err := strconv.Atoi(parts[0])
+	if err != nil || hours < 0 || hours > 23 {
+		return 0, 0, 0, ErrInvalidTimeFormat
+	}
+
+	minutes, err := strconv.Atoi(parts[1])
+	if err != nil || minutes < 0 || minutes > 59 {
+		return 0, 0, 0, ErrInvalidTimeFormat
+	}
+
+	seconds := 0
+	if len(parts) == 3 {
+		if len(parts[2]) != 2 {
+			return 0, 0, 0, ErrInvalidTimeFormat
+		}
+		seconds, err = strconv.Atoi(parts[2])
+		if err != nil || seconds < 0 || seconds > 59 {
+			return 0, 0, 0, ErrInvalidTimeFormat
+		}
+	}
+
+	return hours, minutes, seconds, nil
+}
+
+func parseClockDuration(value string) (time.Duration, error) {
+	parts := strings.Split(value, ":")
+	if len(parts) != 2 && len(parts) != 3 {
+		return 0, ErrInvalidTimeFormat
+	}
+
+	if len(parts[0]) != 2 || len(parts[1]) != 2 {
+		return 0, ErrInvalidTimeFormat
+	}
+
+	hours, err := strconv.Atoi(parts[0])
+	if err != nil || hours < 0 || hours > 24 {
+		return 0, ErrInvalidTimeFormat
+	}
+
+	minutes, err := strconv.Atoi(parts[1])
+	if err != nil || minutes < 0 || minutes > 59 {
+		return 0, ErrInvalidTimeFormat
+	}
+
+	seconds := 0
+	if len(parts) == 3 {
+		if len(parts[2]) != 2 {
+			return 0, ErrInvalidTimeFormat
+		}
+		seconds, err = strconv.Atoi(parts[2])
+		if err != nil || seconds < 0 || seconds > 59 {
+			return 0, ErrInvalidTimeFormat
+		}
+	}
+
+	if hours == 24 && (minutes != 0 || seconds != 0) {
+		return 0, ErrInvalidTimeFormat
+	}
+
+	return time.Duration(hours)*time.Hour + time.Duration(minutes)*time.Minute + time.Duration(seconds)*time.Second, nil
 }
 
 // Domain errors

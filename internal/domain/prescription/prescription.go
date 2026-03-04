@@ -82,6 +82,7 @@ func (p *Prescription) GetAllNotificationTimes() []NotificationSchedule {
 				MedicamentName: medicament.Name,
 				Dosage:         medicament.Dosage,
 				Time:           timeStr,
+				Frequency:      medicament.Frequency,
 				TotalDoses:     medicament.Doses,
 			})
 		}
@@ -121,6 +122,7 @@ type NotificationSchedule struct {
 	MedicamentName string
 	Dosage         string
 	Time           string // HH:MM format
+	Frequency      string // HH:MM or HH:MM:SS
 	TotalDoses     int    // Total number of doses for this medicament
 }
 

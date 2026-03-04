@@ -12,6 +12,17 @@ func TestMedicament_Validate(t *testing.T) {
 		wantErr    bool
 	}{
 		{
+			name: "valid medicament - once with seconds",
+			medicament: Medicament{
+				Name:      "Aspirin",
+				Dosage:    "100mg",
+				Frequency: "00:00:01",
+				Times:     []string{"08:00:05"},
+				Doses:     1,
+			},
+			wantErr: false,
+		},
+		{
 			name: "valid medicament - once daily for 7 days",
 			medicament: Medicament{
 				Name:      "Aspirin",
@@ -122,6 +133,17 @@ func TestMedicament_Validate(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "invalid time format with seconds",
+			medicament: Medicament{
+				Name:      "Aspirin",
+				Dosage:    "100mg",
+				Frequency: "24:00",
+				Times:     []string{"08:00:5"},
+				Doses:     7,
+			},
+			wantErr: true,
+		},
+		{
 			name: "invalid frequency format",
 			medicament: Medicament{
 				Name:      "Aspirin",
@@ -162,13 +184,16 @@ func TestValidateTimeFormat(t *testing.T) {
 		wantErr bool
 	}{
 		{"valid time", "08:00", false},
+		{"valid time with seconds", "08:00:01", false},
 		{"valid time midnight", "00:00", false},
 		{"valid time noon", "12:00", false},
 		{"valid time end of day", "23:59", false},
 		{"invalid - missing colon", "0800", true},
 		{"invalid - single digit hour", "8:00", true},
+		{"invalid - single digit seconds", "08:00:1", true},
 		{"invalid - hour too high", "24:00", true},
 		{"invalid - minute too high", "08:60", true},
+		{"invalid - second too high", "08:00:60", true},
 		{"invalid - negative hour", "-01:00", true},
 		{"invalid - letters", "ab:cd", true},
 	}
@@ -190,6 +215,7 @@ func TestMedicament_GetNextNotificationTime(t *testing.T) {
 		now        time.Time
 		wantHour   int
 		wantMinute int
+		wantSecond int
 		wantDay    int // 0 = today, 1 = tomorrow
 	}{
 		{
@@ -204,6 +230,7 @@ func TestMedicament_GetNextNotificationTime(t *testing.T) {
 			now:        time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
 			wantHour:   20,
 			wantMinute: 0,
+			wantSecond: 0,
 			wantDay:    0,
 		},
 		{
@@ -218,6 +245,7 @@ func TestMedicament_GetNextNotificationTime(t *testing.T) {
 			now:        time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
 			wantHour:   8,
 			wantMinute: 0,
+			wantSecond: 0,
 			wantDay:    1,
 		},
 		{
@@ -232,6 +260,22 @@ func TestMedicament_GetNextNotificationTime(t *testing.T) {
 			now:        time.Date(2024, 1, 1, 5, 0, 0, 0, time.UTC),
 			wantHour:   6,
 			wantMinute: 0,
+			wantSecond: 0,
+			wantDay:    0,
+		},
+		{
+			name: "next time includes seconds",
+			medicament: Medicament{
+				Name:      "Aspirin",
+				Dosage:    "100mg",
+				Frequency: "12:00",
+				Times:     []string{"08:00:05", "20:00:15"},
+				Doses:     14,
+			},
+			now:        time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+			wantHour:   20,
+			wantMinute: 0,
+			wantSecond: 15,
 			wantDay:    0,
 		},
 	}
@@ -254,6 +298,9 @@ func TestMedicament_GetNextNotificationTime(t *testing.T) {
 			}
 			if nextTime.Minute() != tt.wantMinute {
 				t.Errorf("expected minute %d, got %d", tt.wantMinute, nextTime.Minute())
+			}
+			if nextTime.Second() != tt.wantSecond {
+				t.Errorf("expected second %d, got %d", tt.wantSecond, nextTime.Second())
 			}
 			if nextTime.Day() != expectedDay {
 				t.Errorf("expected day %d, got %d", expectedDay, nextTime.Day())
