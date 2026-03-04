@@ -16,5 +16,19 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7
+    container_name: pdsi1-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - pdsi1_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
 volumes:
   pdsi1_postgres:
+  pdsi1_redis:
