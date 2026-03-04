@@ -11,11 +11,13 @@ import (
 type Config struct {
 	DatabaseURL string
 	HTTPAddr    string
+	RedisAddr   string
 }
 
 const (
-	defaultAddr = ":8080"
-	defaultDSN  = "postgres://mednotify:mednotify@localhost:5432/mednotify?sslmode=disable"
+	defaultAddr      = ":8080"
+	defaultDSN       = "postgres://mednotify:mednotify@localhost:5432/mednotify?sslmode=disable"
+	defaultRedisAddr = "localhost:6379"
 )
 
 // Load loads configuration from .env (if present) and environment variables.
@@ -25,6 +27,7 @@ func Load() (*Config, error) {
 	return &Config{
 		DatabaseURL: envString("DATABASE_URL", defaultDSN),
 		HTTPAddr:    envString("HTTP_ADDR", defaultAddr),
+		RedisAddr:   envString("REDIS_ADDR", defaultRedisAddr),
 	}, nil
 }
 
