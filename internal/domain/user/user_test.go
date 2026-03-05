@@ -47,7 +47,7 @@ func TestNewUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			user, err := NewUser(tt.userName, tt.email, tt.phone, tt.firebaseToken)
+			user, err := NewUser(tt.userName, tt.email, tt.phone, tt.firebaseToken, RoleElderly)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewUser() error = %v, wantErr %v", err, tt.wantErr)
 				return

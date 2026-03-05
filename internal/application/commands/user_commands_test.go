@@ -60,6 +60,26 @@ func (m *mockUserRepo) Exists(ctx context.Context, id string) (bool, error) {
 	return false, nil
 }
 
+func (m *mockUserRepo) FindCaregivers(ctx context.Context, elderlyID string) ([]*user.User, error) {
+	return nil, nil
+}
+
+func (m *mockUserRepo) FindCharges(ctx context.Context, caregiverID string) ([]*user.User, error) {
+	return nil, nil
+}
+
+func (m *mockUserRepo) IsLinked(ctx context.Context, caregiverID, elderlyID string) (bool, error) {
+	return false, nil
+}
+
+func (m *mockUserRepo) LinkUsers(ctx context.Context, caregiverID, elderlyID string) error {
+	return nil
+}
+
+func (m *mockUserRepo) UnlinkUsers(ctx context.Context, caregiverID, elderlyID string) error {
+	return nil
+}
+
 func TestUserCommandHandler_Create(t *testing.T) {
 	repo := &mockUserRepo{}
 	var saved *user.User

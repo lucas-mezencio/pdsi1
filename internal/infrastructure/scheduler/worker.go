@@ -26,6 +26,7 @@ type SchedulerWorker struct {
 	pollInterval time.Duration
 	lookback     time.Duration
 	store        EventStore
+	doseStore    DoseRecordStore
 }
 
 func NewSchedulerWorker(client redis.UniversalClient, publisher message.Publisher, keyPrefix string, lookback time.Duration, store EventStore) *SchedulerWorker {
@@ -46,6 +47,14 @@ func NewSchedulerWorker(client redis.UniversalClient, publisher message.Publishe
 		pollInterval: defaultPollInterval,
 		lookback:     lookback,
 		store:        store,
+		doseStore:    &noopDoseRecordStore{},
+	}
+}
+
+// WithDoseRecordStore sets the DoseRecordStore used to create pending records on dispatch.
+func (w *SchedulerWorker) WithDoseRecordStore(ds DoseRecordStore) {
+	if ds != nil {
+		w.doseStore = ds
 	}
 }
 
@@ -123,6 +132,11 @@ func (w *SchedulerWorker) dispatchDue(ctx context.Context) error {
 			log.Printf("notification event save failed: %v", err)
 		}
 
+		// Create a PENDING dose record for this scheduled dose.
+		if err := w.doseStore.CreatePending(ctx, job.ID, job.PrescriptionID, job.UserID, job.MedicamentName, job.Dosage, job.ScheduledAt); err != nil {
+			log.Printf("dose record create failed: %v", err)
+		}
+
 		pipeline := w.client.TxPipeline()
 		pipeline.ZRem(ctx, w.scheduleKey(), jobID)
 		pipeline.HDel(ctx, w.jobsKey(), jobID)
@@ -142,6 +156,8 @@ func (w *SchedulerWorker) jobsKey() string {
 	return fmt.Sprintf("%s:notification_jobs", w.keyPrefix)
 }
 
+// StartNotificationConsumer consumes notification jobs and sends push notifications.
+// Notifications are sent to the target elderly user AND all their linked caregivers.
 func StartNotificationConsumer(ctx context.Context, subscriber message.Subscriber, sender notification.Sender, userRepo user.Repository, cleanup CleanupStore) error {
 	if subscriber == nil {
 		return errors.New("subscriber is required")
@@ -192,18 +208,43 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 				continue
 			}
 
+			scheduledAt := job.ScheduledAt.Format(time.RFC3339)
+
+			// Send to the primary user (elderly).
 			note := notification.Notification{
 				UserID:         job.UserID,
 				PrescriptionID: job.PrescriptionID,
 				MedicamentName: job.MedicamentName,
 				Dosage:         job.Dosage,
-				ScheduledAt:    job.ScheduledAt.Format(time.RFC3339),
+				ScheduledAt:    scheduledAt,
 				FirebaseToken:  userEntity.FirebaseToken,
 			}
 			if err := sender.Send(ctx, note); err != nil {
 				log.Printf("notification send failed: %v", err)
 				msg.Nack()
 				continue
+			}
+
+			// Fan-out: also notify all linked caregivers.
+			caregivers, err := userRepo.FindCaregivers(ctx, job.UserID)
+			if err != nil {
+				log.Printf("caregiver lookup failed for user %s: %v", job.UserID, err)
+			}
+			for _, cg := range caregivers {
+				if !cg.NotificationsEnabled || cg.FirebaseToken == "" {
+					continue
+				}
+				cgNote := notification.Notification{
+					UserID:         job.UserID,
+					PrescriptionID: job.PrescriptionID,
+					MedicamentName: job.MedicamentName,
+					Dosage:         job.Dosage,
+					ScheduledAt:    scheduledAt,
+					FirebaseToken:  cg.FirebaseToken,
+				}
+				if err := sender.Send(ctx, cgNote); err != nil {
+					log.Printf("caregiver notification send failed for %s: %v", cg.ID, err)
+				}
 			}
 
 			msg.Ack()

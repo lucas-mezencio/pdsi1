@@ -14,6 +14,7 @@ type CreateUserCommand struct {
 	Email         string
 	Phone         string
 	FirebaseToken string
+	Role          string // "ELDERLY" or "CAREGIVER" (defaults to "ELDERLY")
 }
 
 // UpdateUserCommand holds data to update a user.
@@ -53,7 +54,8 @@ func NewUserCommandHandler(repo user.Repository) *UserCommandHandler {
 
 // Create creates a new user.
 func (h *UserCommandHandler) Create(ctx context.Context, cmd CreateUserCommand) (*user.User, error) {
-	newUser, err := user.NewUser(cmd.Name, cmd.Email, cmd.Phone, cmd.FirebaseToken)
+	role := user.Role(cmd.Role)
+	newUser, err := user.NewUser(cmd.Name, cmd.Email, cmd.Phone, cmd.FirebaseToken, role)
 	if err != nil {
 		return nil, err
 	}

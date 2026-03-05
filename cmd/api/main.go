@@ -87,6 +87,8 @@ func main() {
 	userRepo := database.NewUserRepository(db)
 	doctorRepo := database.NewDoctorRepository(db)
 	prescriptionRepo := database.NewPrescriptionRepository(db)
+	doseRecordRepo := database.NewDoseRecordRepository(db)
+	invitationRepo := database.NewInvitationRepository(db)
 	eventStore := database.NewNotificationEventStore(db)
 
 	schedulerAdapter, err := scheduler.NewRedisScheduler(scheduler.RedisSchedulerConfig{Client: redisClient})
@@ -95,6 +97,7 @@ func main() {
 	}
 
 	worker := scheduler.NewSchedulerWorker(redisClient, publisher, "", appConfig.NotificationLookback, eventStore)
+	worker.WithDoseRecordStore(doseRecordRepo)
 	go func() {
 		if err := worker.Run(ctx); err != nil && err != context.Canceled {
 			log.Printf("scheduler worker stopped: %v", err)
@@ -130,6 +133,10 @@ func main() {
 	doctorQueries := queries.NewDoctorQueryHandler(doctorRepo)
 	prescriptionCommands := commands.NewPrescriptionCommandHandler(prescriptionRepo, userRepo, doctorRepo, schedulerAdapter)
 	prescriptionQueries := queries.NewPrescriptionQueryHandler(prescriptionRepo)
+	inviteCommands := commands.NewInvitationCommandHandler(userRepo, invitationRepo)
+	doseCommands := commands.NewDoseRecordCommandHandler(doseRecordRepo, userRepo)
+	doseQueries := queries.NewDoseRecordQueryHandler(doseRecordRepo, userRepo)
+	linkedUserQueries := queries.NewLinkedUserQueryHandler(userRepo, invitationRepo)
 
 	apiServer := httpapi.NewServer(
 		userCommands,
@@ -140,7 +147,15 @@ func main() {
 		prescriptionQueries,
 	)
 
-	handler := httpapi.NewRouter(apiServer)
+	extServer := httpapi.NewExtendedServer(
+		userRepo,
+		inviteCommands,
+		doseCommands,
+		doseQueries,
+		linkedUserQueries,
+	)
+
+	handler := httpapi.NewRouter(apiServer, extServer)
 
 	httpServer := &http.Server{
 		Addr:              addr,

@@ -127,6 +127,21 @@ func (m *mockExistsRepo) FindByEmail(ctx context.Context, email string) (*user.U
 }
 func (m *mockExistsRepo) FindAll(ctx context.Context) ([]*user.User, error) { return nil, nil }
 func (m *mockExistsRepo) Delete(ctx context.Context, id string) error       { return nil }
+func (m *mockExistsRepo) FindCaregivers(ctx context.Context, elderlyID string) ([]*user.User, error) {
+	return nil, nil
+}
+func (m *mockExistsRepo) FindCharges(ctx context.Context, caregiverID string) ([]*user.User, error) {
+	return nil, nil
+}
+func (m *mockExistsRepo) IsLinked(ctx context.Context, caregiverID, elderlyID string) (bool, error) {
+	return false, nil
+}
+func (m *mockExistsRepo) LinkUsers(ctx context.Context, caregiverID, elderlyID string) error {
+	return nil
+}
+func (m *mockExistsRepo) UnlinkUsers(ctx context.Context, caregiverID, elderlyID string) error {
+	return nil
+}
 
 type mockDoctorExistsRepo struct {
 	exists bool

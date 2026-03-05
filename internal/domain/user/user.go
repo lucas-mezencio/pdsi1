@@ -7,6 +7,14 @@ import (
 	"github.com/google/uuid"
 )
 
+// Role represents the role of a user in the system.
+type Role string
+
+const (
+	RoleElderly   Role = "ELDERLY"
+	RoleCaregiver Role = "CAREGIVER"
+)
+
 // User represents an elderly user or caretaker who receives medication notifications
 type User struct {
 	ID                   string    `json:"id"`
@@ -15,14 +23,19 @@ type User struct {
 	Phone                string    `json:"phone"`
 	FirebaseToken        string    `json:"firebase_token"`
 	NotificationsEnabled bool      `json:"notifications_enabled"`
+	Role                 Role      `json:"role"`
 	CreatedAt            time.Time `json:"created_at"`
 	UpdatedAt            time.Time `json:"updated_at"`
 }
 
 // NewUser creates a new User with generated ID and timestamps
-func NewUser(name, email, phone, firebaseToken string) (*User, error) {
+func NewUser(name, email, phone, firebaseToken string, role Role) (*User, error) {
 	if err := validateUser(name, email, phone); err != nil {
 		return nil, err
+	}
+
+	if role != RoleElderly && role != RoleCaregiver {
+		role = RoleElderly
 	}
 
 	now := time.Now()
@@ -33,6 +46,7 @@ func NewUser(name, email, phone, firebaseToken string) (*User, error) {
 		Phone:                phone,
 		FirebaseToken:        firebaseToken,
 		NotificationsEnabled: true,
+		Role:                 role,
 		CreatedAt:            now,
 		UpdatedAt:            now,
 	}, nil
@@ -69,6 +83,16 @@ func (u *User) DisableNotifications() {
 	u.UpdatedAt = time.Now()
 }
 
+// IsElderly returns true if the user is an elderly user
+func (u *User) IsElderly() bool {
+	return u.Role == RoleElderly
+}
+
+// IsCaregiver returns true if the user is a caregiver
+func (u *User) IsCaregiver() bool {
+	return u.Role == RoleCaregiver
+}
+
 // validateUser validates user fields
 func validateUser(name, email, phone string) error {
 	if name == "" {
@@ -89,4 +113,5 @@ var (
 	ErrInvalidName  = errors.New("invalid user name")
 	ErrInvalidEmail = errors.New("invalid user email")
 	ErrInvalidPhone = errors.New("invalid user phone")
+	ErrInvalidRole  = errors.New("invalid user role")
 )

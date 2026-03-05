@@ -21,4 +21,19 @@ type Repository interface {
 
 	// Exists checks if a user exists by ID
 	Exists(ctx context.Context, id string) (bool, error)
+
+	// FindCaregivers retrieves all caregivers linked to an elderly user
+	FindCaregivers(ctx context.Context, elderlyID string) ([]*User, error)
+
+	// FindCharges retrieves all elderly users linked to a caregiver
+	FindCharges(ctx context.Context, caregiverID string) ([]*User, error)
+
+	// IsLinked checks if a caregiver is linked to an elderly user
+	IsLinked(ctx context.Context, caregiverID, elderlyID string) (bool, error)
+
+	// LinkUsers creates a caregiver-elderly link
+	LinkUsers(ctx context.Context, caregiverID, elderlyID string) error
+
+	// UnlinkUsers removes a caregiver-elderly link
+	UnlinkUsers(ctx context.Context, caregiverID, elderlyID string) error
 }
