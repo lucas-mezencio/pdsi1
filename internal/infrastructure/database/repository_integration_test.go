@@ -68,7 +68,7 @@ func TestUserRepository_CRUD(t *testing.T) {
 	repo := NewUserRepository(db)
 
 	ctx := context.Background()
-	entity, err := user.NewUser("Alice", "alice@example.com", "+100000000", "token")
+	entity, err := user.NewUser("Alice", "alice@example.com", "+100000000", "token", user.RoleElderly)
 	if err != nil {
 		t.Fatalf("failed to create user: %v", err)
 	}
@@ -186,7 +186,7 @@ func TestPrescriptionRepository_CRUD(t *testing.T) {
 	repo := NewPrescriptionRepository(db)
 
 	ctx := context.Background()
-	usr, err := user.NewUser("Alice", "alice@example.com", "+100000000", "token")
+	usr, err := user.NewUser("Alice", "alice@example.com", "+100000000", "token", user.RoleElderly)
 	if err != nil {
 		t.Fatalf("failed to create user: %v", err)
 	}

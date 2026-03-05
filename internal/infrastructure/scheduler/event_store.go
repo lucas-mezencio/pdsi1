@@ -19,8 +19,19 @@ type EventStore interface {
 	Save(ctx context.Context, event NotificationEvent) error
 }
 
+// DoseRecordStore creates a pending dose record when a notification fires.
+type DoseRecordStore interface {
+	CreatePending(ctx context.Context, id, prescriptionID, userID, medicamentName, dosage string, scheduledAt time.Time) error
+}
+
 type CleanupStore interface {
 	Delete(ctx context.Context, jobID string) error
+}
+
+type noopDoseRecordStore struct{}
+
+func (n *noopDoseRecordStore) CreatePending(ctx context.Context, id, prescriptionID, userID, medicamentName, dosage string, scheduledAt time.Time) error {
+	return nil
 }
 
 type noopEventStore struct{}

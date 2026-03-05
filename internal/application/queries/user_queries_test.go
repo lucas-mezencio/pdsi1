@@ -36,6 +36,21 @@ func (m *mockUserRepo) FindAll(ctx context.Context) ([]*user.User, error) {
 }
 func (m *mockUserRepo) Delete(ctx context.Context, id string) error         { return nil }
 func (m *mockUserRepo) Exists(ctx context.Context, id string) (bool, error) { return false, nil }
+func (m *mockUserRepo) FindCaregivers(ctx context.Context, elderlyID string) ([]*user.User, error) {
+	return nil, nil
+}
+func (m *mockUserRepo) FindCharges(ctx context.Context, caregiverID string) ([]*user.User, error) {
+	return nil, nil
+}
+func (m *mockUserRepo) IsLinked(ctx context.Context, caregiverID, elderlyID string) (bool, error) {
+	return false, nil
+}
+func (m *mockUserRepo) LinkUsers(ctx context.Context, caregiverID, elderlyID string) error {
+	return nil
+}
+func (m *mockUserRepo) UnlinkUsers(ctx context.Context, caregiverID, elderlyID string) error {
+	return nil
+}
 
 func TestUserQueryHandler_GetByID(t *testing.T) {
 	repo := &mockUserRepo{

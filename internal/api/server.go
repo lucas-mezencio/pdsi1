@@ -57,17 +57,25 @@ func (s *Server) ListUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) CreateUser(w http.ResponseWriter, r *http.Request) {
-	var body gen.CreateUserRequest
-	if err := decodeJSON(r, &body); err != nil {
+	// Custom struct to accept the optional `role` field alongside generated schema fields.
+	var body struct {
+		Name          string `json:"name"`
+		Email         string `json:"email"`
+		Phone         string `json:"phone"`
+		FirebaseToken string `json:"firebase_token"`
+		Role          string `json:"role"` // "ELDERLY" | "CAREGIVER" (optional, defaults to "ELDERLY")
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request", err.Error())
 		return
 	}
 
 	created, err := s.userCommands.Create(r.Context(), commands.CreateUserCommand{
 		Name:          body.Name,
-		Email:         string(body.Email),
+		Email:         body.Email,
 		Phone:         body.Phone,
 		FirebaseToken: body.FirebaseToken,
+		Role:          body.Role,
 	})
 	if err != nil {
 		writeCommandError(w, err)
