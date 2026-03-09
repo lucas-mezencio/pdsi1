@@ -21,12 +21,13 @@ func NewDoctorRepository(db *sql.DB) *DoctorRepository {
 // Save creates or updates a doctor.
 func (r *DoctorRepository) Save(ctx context.Context, entity *doctor.Doctor) error {
 	query := `
-		INSERT INTO doctors (id, name, email, phone, specialty, license_number, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO doctors (id, name, email, phone, firebase_id, specialty, license_number, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		ON CONFLICT (id) DO UPDATE SET
 			name = EXCLUDED.name,
 			email = EXCLUDED.email,
 			phone = EXCLUDED.phone,
+			firebase_id = EXCLUDED.firebase_id,
 			specialty = EXCLUDED.specialty,
 			license_number = EXCLUDED.license_number,
 			updated_at = EXCLUDED.updated_at
@@ -37,6 +38,7 @@ func (r *DoctorRepository) Save(ctx context.Context, entity *doctor.Doctor) erro
 		entity.Name,
 		entity.Email,
 		entity.Phone,
+		entity.FirebaseID,
 		entity.Specialty,
 		entity.LicenseNumber,
 		entity.CreatedAt,
@@ -48,17 +50,19 @@ func (r *DoctorRepository) Save(ctx context.Context, entity *doctor.Doctor) erro
 // FindByID retrieves a doctor by ID.
 func (r *DoctorRepository) FindByID(ctx context.Context, id string) (*doctor.Doctor, error) {
 	query := `
-		SELECT id, name, email, phone, specialty, license_number, created_at, updated_at
+		SELECT id, name, email, phone, firebase_id, specialty, license_number, created_at, updated_at
 		FROM doctors
 		WHERE id = $1
 	`
 
 	var entity doctor.Doctor
+	var firebaseID sql.NullString
 	if err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&entity.ID,
 		&entity.Name,
 		&entity.Email,
 		&entity.Phone,
+		&firebaseID,
 		&entity.Specialty,
 		&entity.LicenseNumber,
 		&entity.CreatedAt,
@@ -68,6 +72,9 @@ func (r *DoctorRepository) FindByID(ctx context.Context, id string) (*doctor.Doc
 			return nil, doctor.ErrDoctorNotFound
 		}
 		return nil, err
+	}
+	if firebaseID.Valid {
+		entity.FirebaseID = firebaseID.String
 	}
 
 	return &entity, nil
@@ -76,17 +83,19 @@ func (r *DoctorRepository) FindByID(ctx context.Context, id string) (*doctor.Doc
 // FindByEmail retrieves a doctor by email.
 func (r *DoctorRepository) FindByEmail(ctx context.Context, email string) (*doctor.Doctor, error) {
 	query := `
-		SELECT id, name, email, phone, specialty, license_number, created_at, updated_at
+		SELECT id, name, email, phone, firebase_id, specialty, license_number, created_at, updated_at
 		FROM doctors
 		WHERE email = $1
 	`
 
 	var entity doctor.Doctor
+	var firebaseID sql.NullString
 	if err := r.db.QueryRowContext(ctx, query, email).Scan(
 		&entity.ID,
 		&entity.Name,
 		&entity.Email,
 		&entity.Phone,
+		&firebaseID,
 		&entity.Specialty,
 		&entity.LicenseNumber,
 		&entity.CreatedAt,
@@ -96,6 +105,42 @@ func (r *DoctorRepository) FindByEmail(ctx context.Context, email string) (*doct
 			return nil, doctor.ErrDoctorNotFound
 		}
 		return nil, err
+	}
+	if firebaseID.Valid {
+		entity.FirebaseID = firebaseID.String
+	}
+
+	return &entity, nil
+}
+
+// FindByFirebaseID retrieves a doctor by firebase auth UID.
+func (r *DoctorRepository) FindByFirebaseID(ctx context.Context, firebaseID string) (*doctor.Doctor, error) {
+	query := `
+		SELECT id, name, email, phone, firebase_id, specialty, license_number, created_at, updated_at
+		FROM doctors
+		WHERE firebase_id = $1
+	`
+
+	var entity doctor.Doctor
+	var firebaseIDValue sql.NullString
+	if err := r.db.QueryRowContext(ctx, query, firebaseID).Scan(
+		&entity.ID,
+		&entity.Name,
+		&entity.Email,
+		&entity.Phone,
+		&firebaseIDValue,
+		&entity.Specialty,
+		&entity.LicenseNumber,
+		&entity.CreatedAt,
+		&entity.UpdatedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, doctor.ErrDoctorNotFound
+		}
+		return nil, err
+	}
+	if firebaseIDValue.Valid {
+		entity.FirebaseID = firebaseIDValue.String
 	}
 
 	return &entity, nil
@@ -104,17 +149,19 @@ func (r *DoctorRepository) FindByEmail(ctx context.Context, email string) (*doct
 // FindByLicenseNumber retrieves a doctor by license number.
 func (r *DoctorRepository) FindByLicenseNumber(ctx context.Context, licenseNumber string) (*doctor.Doctor, error) {
 	query := `
-		SELECT id, name, email, phone, specialty, license_number, created_at, updated_at
+		SELECT id, name, email, phone, firebase_id, specialty, license_number, created_at, updated_at
 		FROM doctors
 		WHERE license_number = $1
 	`
 
 	var entity doctor.Doctor
+	var firebaseID sql.NullString
 	if err := r.db.QueryRowContext(ctx, query, licenseNumber).Scan(
 		&entity.ID,
 		&entity.Name,
 		&entity.Email,
 		&entity.Phone,
+		&firebaseID,
 		&entity.Specialty,
 		&entity.LicenseNumber,
 		&entity.CreatedAt,
@@ -125,6 +172,9 @@ func (r *DoctorRepository) FindByLicenseNumber(ctx context.Context, licenseNumbe
 		}
 		return nil, err
 	}
+	if firebaseID.Valid {
+		entity.FirebaseID = firebaseID.String
+	}
 
 	return &entity, nil
 }
@@ -132,7 +182,7 @@ func (r *DoctorRepository) FindByLicenseNumber(ctx context.Context, licenseNumbe
 // FindAll retrieves all doctors.
 func (r *DoctorRepository) FindAll(ctx context.Context) ([]*doctor.Doctor, error) {
 	query := `
-		SELECT id, name, email, phone, specialty, license_number, created_at, updated_at
+		SELECT id, name, email, phone, firebase_id, specialty, license_number, created_at, updated_at
 		FROM doctors
 		ORDER BY created_at DESC
 	`
@@ -146,17 +196,22 @@ func (r *DoctorRepository) FindAll(ctx context.Context) ([]*doctor.Doctor, error
 	var result []*doctor.Doctor
 	for rows.Next() {
 		var entity doctor.Doctor
+		var firebaseID sql.NullString
 		if err := rows.Scan(
 			&entity.ID,
 			&entity.Name,
 			&entity.Email,
 			&entity.Phone,
+			&firebaseID,
 			&entity.Specialty,
 			&entity.LicenseNumber,
 			&entity.CreatedAt,
 			&entity.UpdatedAt,
 		); err != nil {
 			return nil, err
+		}
+		if firebaseID.Valid {
+			entity.FirebaseID = firebaseID.String
 		}
 		result = append(result, &entity)
 	}

@@ -21,6 +21,7 @@ type User struct {
 	Name                 string    `json:"name"`
 	Email                string    `json:"email"`
 	Phone                string    `json:"phone"`
+	FirebaseID           string    `json:"firebase_id,omitempty"`
 	FirebaseToken        string    `json:"firebase_token"`
 	NotificationsEnabled bool      `json:"notifications_enabled"`
 	Role                 Role      `json:"role"`
@@ -68,6 +69,12 @@ func (u *User) Update(name, email, phone string) error {
 // UpdateFirebaseToken updates the user's Firebase token for notifications
 func (u *User) UpdateFirebaseToken(token string) {
 	u.FirebaseToken = token
+	u.UpdatedAt = time.Now()
+}
+
+// LinkFirebaseAccount links the local user to a Firebase Auth UID.
+func (u *User) LinkFirebaseAccount(firebaseID string) {
+	u.FirebaseID = firebaseID
 	u.UpdatedAt = time.Now()
 }
 

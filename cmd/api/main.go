@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"os/signal"
@@ -13,10 +14,12 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	httpapi "github.com.br/lucas-mezencio/pdsi1/internal/api"
+	"github.com.br/lucas-mezencio/pdsi1/internal/application"
 	"github.com.br/lucas-mezencio/pdsi1/internal/application/commands"
 	"github.com.br/lucas-mezencio/pdsi1/internal/application/queries"
 	"github.com.br/lucas-mezencio/pdsi1/internal/config"
 	"github.com.br/lucas-mezencio/pdsi1/internal/infrastructure/database"
+	"github.com.br/lucas-mezencio/pdsi1/internal/infrastructure/firebaseauth"
 	"github.com.br/lucas-mezencio/pdsi1/internal/infrastructure/notification"
 	"github.com.br/lucas-mezencio/pdsi1/internal/infrastructure/scheduler"
 )
@@ -91,6 +94,18 @@ func main() {
 	invitationRepo := database.NewInvitationRepository(db)
 	eventStore := database.NewNotificationEventStore(db)
 
+	var authProvider commands.AuthenticationProvider
+	firebaseAuthService, err := firebaseauth.NewService(ctx, appConfig.FirebaseCredentialsFile, appConfig.FirebaseWebAPIKey)
+	if err != nil {
+		if errors.Is(err, application.ErrAuthNotConfigured) {
+			log.Printf("firebase auth disabled: set FIREBASE_CREDENTIALS_FILE and FIREBASE_WEB_API_KEY")
+		} else {
+			log.Printf("firebase auth init failed: %v", err)
+		}
+	} else {
+		authProvider = firebaseAuthService
+	}
+
 	schedulerAdapter, err := scheduler.NewRedisScheduler(scheduler.RedisSchedulerConfig{Client: redisClient})
 	if err != nil {
 		log.Fatalf("scheduler init failed: %v", err)
@@ -128,6 +143,8 @@ func main() {
 	}()
 
 	userCommands := commands.NewUserCommandHandler(userRepo)
+	authCommands := commands.NewAuthCommandHandler(userRepo, authProvider)
+	doctorAuthCommands := commands.NewDoctorAuthCommandHandler(doctorRepo, authProvider)
 	userQueries := queries.NewUserQueryHandler(userRepo)
 	doctorCommands := commands.NewDoctorCommandHandler(doctorRepo)
 	doctorQueries := queries.NewDoctorQueryHandler(doctorRepo)
@@ -149,6 +166,8 @@ func main() {
 
 	extServer := httpapi.NewExtendedServer(
 		userRepo,
+		authCommands,
+		doctorAuthCommands,
 		inviteCommands,
 		doseCommands,
 		doseQueries,

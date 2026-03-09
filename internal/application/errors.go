@@ -14,4 +14,8 @@ var (
 	ErrAlreadyLinked        = errors.New("users are already linked")
 	ErrWrongRole            = errors.New("user does not have the required role")
 	ErrForbidden            = errors.New("access denied")
+	ErrAuthenticationFailed = errors.New("invalid email or password")
+	ErrEmailAlreadyInUse    = errors.New("email already in use")
+	ErrLicenseAlreadyInUse  = errors.New("license number already in use")
+	ErrAuthNotConfigured    = errors.New("firebase authentication is not configured")
 )

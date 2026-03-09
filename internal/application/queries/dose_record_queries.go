@@ -3,6 +3,7 @@ package queries
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com.br/lucas-mezencio/pdsi1/internal/application"
 	"github.com.br/lucas-mezencio/pdsi1/internal/domain/prescription"
@@ -29,6 +30,12 @@ type ListChargesQuery struct {
 	CallerID    string
 }
 
+// ListCaregiverInvitationsQuery retrieves invitations for a caregiver.
+type ListCaregiverInvitationsQuery struct {
+	CaregiverID string
+	CallerID    string
+}
+
 // GetInvitationByTokenQuery retrieves an invitation by token.
 type GetInvitationByTokenQuery struct {
 	Token string
@@ -37,7 +44,7 @@ type GetInvitationByTokenQuery struct {
 // DoseRecordQueryHandler handles dose record read operations.
 type DoseRecordQueryHandler struct {
 	doseRepo prescription.DoseRecordRepository
-	userRepo  user.Repository
+	userRepo user.Repository
 }
 
 // NewDoseRecordQueryHandler creates a DoseRecordQueryHandler.
@@ -121,13 +128,27 @@ func (h *LinkedUserQueryHandler) ListCharges(ctx context.Context, query ListChar
 	return h.userRepo.FindCharges(ctx, query.CaregiverID)
 }
 
-// GetInvitationByToken retrieves an invitation by its token.
-func (h *LinkedUserQueryHandler) GetInvitationByToken(ctx context.Context, query GetInvitationByTokenQuery) (*user.CaregiverInvitation, error) {
-	if query.Token == "" {
+// ListCaregiverInvitations returns invitations addressed to a caregiver.
+func (h *LinkedUserQueryHandler) ListCaregiverInvitations(ctx context.Context, query ListCaregiverInvitationsQuery) ([]*user.CaregiverInvitation, error) {
+	if query.CaregiverID == "" {
 		return nil, application.ErrInvalidInput
 	}
 
-	inv, err := h.inviteRepo.FindByToken(ctx, query.Token)
+	if query.CallerID != "" && query.CallerID != query.CaregiverID {
+		return nil, application.ErrForbidden
+	}
+
+	return h.inviteRepo.FindByCaregiverID(ctx, query.CaregiverID)
+}
+
+// GetInvitationByToken retrieves an invitation by its token.
+func (h *LinkedUserQueryHandler) GetInvitationByToken(ctx context.Context, query GetInvitationByTokenQuery) (*user.CaregiverInvitation, error) {
+	token := strings.TrimSpace(query.Token)
+	if token == "" {
+		return nil, application.ErrInvalidInput
+	}
+
+	inv, err := h.inviteRepo.FindByToken(ctx, token)
 	if err != nil {
 		if errors.Is(err, user.ErrInvitationNotFound) {
 			return nil, application.ErrInvitationNotFound

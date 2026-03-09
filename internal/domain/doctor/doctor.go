@@ -13,6 +13,7 @@ type Doctor struct {
 	Name          string    `json:"name"`
 	Email         string    `json:"email"`
 	Phone         string    `json:"phone"`
+	FirebaseID    string    `json:"firebase_id,omitempty"`
 	Specialty     string    `json:"specialty"`
 	LicenseNumber string    `json:"license_number"`
 	CreatedAt     time.Time `json:"created_at"`
@@ -50,6 +51,12 @@ func (d *Doctor) Update(name, email, phone, specialty string) error {
 	d.Specialty = specialty
 	d.UpdatedAt = time.Now()
 	return nil
+}
+
+// LinkFirebaseAccount links the doctor to a Firebase Auth UID.
+func (d *Doctor) LinkFirebaseAccount(firebaseID string) {
+	d.FirebaseID = firebaseID
+	d.UpdatedAt = time.Now()
 }
 
 // validateDoctor validates doctor fields

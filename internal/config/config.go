@@ -15,6 +15,7 @@ type Config struct {
 	RedisAddr               string
 	NotifierMode            string
 	FirebaseCredentialsFile string
+	FirebaseWebAPIKey       string
 	NotificationLookback    time.Duration
 }
 
@@ -36,6 +37,7 @@ func Load() (*Config, error) {
 		RedisAddr:               envString("REDIS_ADDR", defaultRedisAddr),
 		NotifierMode:            envString("NOTIFIER_MODE", defaultNotifierMode),
 		FirebaseCredentialsFile: envString("FIREBASE_CREDENTIALS_FILE", ""),
+		FirebaseWebAPIKey:       envString("FIREBASE_WEB_API_KEY", ""),
 		NotificationLookback:    defaultNotificationLookback,
 	}, nil
 }
