@@ -13,6 +13,9 @@ type Repository interface {
 	// FindByEmail retrieves a user by email
 	FindByEmail(ctx context.Context, email string) (*User, error)
 
+	// FindByFirebaseID retrieves a user by firebase auth UID
+	FindByFirebaseID(ctx context.Context, firebaseID string) (*User, error)
+
 	// FindAll retrieves all users
 	FindAll(ctx context.Context) ([]*User, error)
 

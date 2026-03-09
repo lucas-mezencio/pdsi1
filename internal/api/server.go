@@ -62,6 +62,7 @@ func (s *Server) CreateUser(w http.ResponseWriter, r *http.Request) {
 		Name          string `json:"name"`
 		Email         string `json:"email"`
 		Phone         string `json:"phone"`
+		FirebaseID    string `json:"firebase_id"`
 		FirebaseToken string `json:"firebase_token"`
 		Role          string `json:"role"` // "ELDERLY" | "CAREGIVER" (optional, defaults to "ELDERLY")
 	}
@@ -74,6 +75,7 @@ func (s *Server) CreateUser(w http.ResponseWriter, r *http.Request) {
 		Name:          body.Name,
 		Email:         body.Email,
 		Phone:         body.Phone,
+		FirebaseID:    body.FirebaseID,
 		FirebaseToken: body.FirebaseToken,
 		Role:          body.Role,
 	})

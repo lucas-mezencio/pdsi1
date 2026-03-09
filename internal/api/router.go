@@ -19,6 +19,12 @@ func NewRouter(server gen.ServerInterface, ext *ExtendedServer) http.Handler {
 
 	// Register additional routes not covered by the generated spec.
 	router.Route("/api/v1", func(r chi.Router) {
+		// Auth
+		r.Post("/auth/register", ext.Register)
+		r.Post("/auth/login", ext.Login)
+		r.Post("/auth/doctors/register", ext.RegisterDoctor)
+		r.Post("/auth/doctors/login", ext.LoginDoctor)
+
 		// Invitations
 		r.Post("/invitations", ext.CreateInvitation)
 		r.Get("/invitations/{token}", ext.GetInvitationByToken)
@@ -29,6 +35,7 @@ func NewRouter(server gen.ServerInterface, ext *ExtendedServer) http.Handler {
 		r.Get("/users/{userId}/caregivers", ext.ListCaregivers)
 		r.Delete("/users/{userId}/caregivers/{caregiverId}", ext.UnlinkUsers)
 		r.Get("/users/{userId}/charges", ext.ListCharges)
+		r.Get("/users/{userId}/invitations", ext.ListCaregiverInvitations)
 
 		// Dose records
 		r.Get("/users/{userId}/dose-records", ext.ListDoseRecords)

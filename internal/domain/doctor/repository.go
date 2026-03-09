@@ -13,6 +13,9 @@ type Repository interface {
 	// FindByEmail retrieves a doctor by email
 	FindByEmail(ctx context.Context, email string) (*Doctor, error)
 
+	// FindByFirebaseID retrieves a doctor by firebase auth UID
+	FindByFirebaseID(ctx context.Context, firebaseID string) (*Doctor, error)
+
 	// FindByLicenseNumber retrieves a doctor by license number
 	FindByLicenseNumber(ctx context.Context, licenseNumber string) (*Doctor, error)
 

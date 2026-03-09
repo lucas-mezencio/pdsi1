@@ -10,9 +10,10 @@ import (
 )
 
 type mockUserRepo struct {
-	findByIDFn    func(ctx context.Context, id string) (*user.User, error)
-	findByEmailFn func(ctx context.Context, email string) (*user.User, error)
-	findAllFn     func(ctx context.Context) ([]*user.User, error)
+	findByIDFn         func(ctx context.Context, id string) (*user.User, error)
+	findByEmailFn      func(ctx context.Context, email string) (*user.User, error)
+	findByFirebaseIDFn func(ctx context.Context, firebaseID string) (*user.User, error)
+	findAllFn          func(ctx context.Context) ([]*user.User, error)
 }
 
 func (m *mockUserRepo) Save(ctx context.Context, entity *user.User) error { return nil }
@@ -25,6 +26,12 @@ func (m *mockUserRepo) FindByID(ctx context.Context, id string) (*user.User, err
 func (m *mockUserRepo) FindByEmail(ctx context.Context, email string) (*user.User, error) {
 	if m.findByEmailFn != nil {
 		return m.findByEmailFn(ctx, email)
+	}
+	return nil, user.ErrUserNotFound
+}
+func (m *mockUserRepo) FindByFirebaseID(ctx context.Context, firebaseID string) (*user.User, error) {
+	if m.findByFirebaseIDFn != nil {
+		return m.findByFirebaseIDFn(ctx, firebaseID)
 	}
 	return nil, user.ErrUserNotFound
 }

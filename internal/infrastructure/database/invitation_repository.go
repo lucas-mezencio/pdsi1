@@ -45,7 +45,7 @@ func (r *InvitationRepository) FindByToken(ctx context.Context, token string) (*
 	query := `
 		SELECT id, caregiver_id, elderly_id, token, status, created_at, updated_at
 		FROM caregiver_invitations
-		WHERE token = $1
+		WHERE LOWER(token) = LOWER($1)
 	`
 
 	var inv user.CaregiverInvitation

@@ -125,6 +125,9 @@ func (m *mockExistsRepo) FindByID(ctx context.Context, id string) (*user.User, e
 func (m *mockExistsRepo) FindByEmail(ctx context.Context, email string) (*user.User, error) {
 	return nil, user.ErrUserNotFound
 }
+func (m *mockExistsRepo) FindByFirebaseID(ctx context.Context, firebaseID string) (*user.User, error) {
+	return nil, user.ErrUserNotFound
+}
 func (m *mockExistsRepo) FindAll(ctx context.Context) ([]*user.User, error) { return nil, nil }
 func (m *mockExistsRepo) Delete(ctx context.Context, id string) error       { return nil }
 func (m *mockExistsRepo) FindCaregivers(ctx context.Context, elderlyID string) ([]*user.User, error) {
@@ -157,6 +160,9 @@ func (m *mockDoctorExistsRepo) FindByID(ctx context.Context, id string) (*doctor
 	return nil, doctor.ErrDoctorNotFound
 }
 func (m *mockDoctorExistsRepo) FindByEmail(ctx context.Context, email string) (*doctor.Doctor, error) {
+	return nil, doctor.ErrDoctorNotFound
+}
+func (m *mockDoctorExistsRepo) FindByFirebaseID(ctx context.Context, firebaseID string) (*doctor.Doctor, error) {
 	return nil, doctor.ErrDoctorNotFound
 }
 func (m *mockDoctorExistsRepo) FindByLicenseNumber(ctx context.Context, licenseNumber string) (*doctor.Doctor, error) {

@@ -72,6 +72,7 @@ func TestUserRepository_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create user: %v", err)
 	}
+	entity.LinkFirebaseAccount("firebase-uid-1")
 
 	if err := repo.Save(ctx, entity); err != nil {
 		t.Fatalf("failed to save user: %v", err)
@@ -88,6 +89,12 @@ func TestUserRepository_CRUD(t *testing.T) {
 		t.Fatalf("failed to find by email: %v", err)
 	}
 	assertUserEqual(t, entity, foundByEmail)
+
+	foundByFirebaseID, err := repo.FindByFirebaseID(ctx, entity.FirebaseID)
+	if err != nil {
+		t.Fatalf("failed to find by firebase id: %v", err)
+	}
+	assertUserEqual(t, entity, foundByFirebaseID)
 
 	entity.Update("Alice Updated", "alice.updated@example.com", "+200000000")
 	if err := repo.Save(ctx, entity); err != nil {
@@ -130,6 +137,7 @@ func TestDoctorRepository_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create doctor: %v", err)
 	}
+	entity.LinkFirebaseAccount("doctor-firebase-uid-1")
 
 	if err := repo.Save(ctx, entity); err != nil {
 		t.Fatalf("failed to save doctor: %v", err)
@@ -140,6 +148,12 @@ func TestDoctorRepository_CRUD(t *testing.T) {
 		t.Fatalf("failed to find by id: %v", err)
 	}
 	assertDoctorEqual(t, entity, found)
+
+	byFirebaseID, err := repo.FindByFirebaseID(ctx, entity.FirebaseID)
+	if err != nil {
+		t.Fatalf("failed to find by firebase id: %v", err)
+	}
+	assertDoctorEqual(t, entity, byFirebaseID)
 
 	byLicense, err := repo.FindByLicenseNumber(ctx, entity.LicenseNumber)
 	if err != nil {
@@ -320,6 +334,9 @@ func assertUserEqual(t *testing.T, expected *user.User, actual *user.User) {
 	if expected.FirebaseToken != actual.FirebaseToken {
 		t.Fatalf("expected firebase token %s, got %s", expected.FirebaseToken, actual.FirebaseToken)
 	}
+	if expected.FirebaseID != actual.FirebaseID {
+		t.Fatalf("expected firebase id %s, got %s", expected.FirebaseID, actual.FirebaseID)
+	}
 	if expected.NotificationsEnabled != actual.NotificationsEnabled {
 		t.Fatalf("expected notifications enabled %v, got %v", expected.NotificationsEnabled, actual.NotificationsEnabled)
 	}
@@ -338,6 +355,9 @@ func assertDoctorEqual(t *testing.T, expected *doctor.Doctor, actual *doctor.Doc
 	}
 	if expected.Phone != actual.Phone {
 		t.Fatalf("expected phone %s, got %s", expected.Phone, actual.Phone)
+	}
+	if expected.FirebaseID != actual.FirebaseID {
+		t.Fatalf("expected firebase id %s, got %s", expected.FirebaseID, actual.FirebaseID)
 	}
 	if expected.Specialty != actual.Specialty {
 		t.Fatalf("expected specialty %s, got %s", expected.Specialty, actual.Specialty)

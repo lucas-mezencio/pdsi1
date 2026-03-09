@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com.br/lucas-mezencio/pdsi1/internal/application"
 	"github.com.br/lucas-mezencio/pdsi1/internal/domain/user"
@@ -96,11 +97,12 @@ func (h *InvitationCommandHandler) Create(ctx context.Context, cmd CreateInvitat
 
 // Accept accepts a pending invitation and creates the user link.
 func (h *InvitationCommandHandler) Accept(ctx context.Context, cmd AcceptInvitationCommand) (*user.CaregiverInvitation, error) {
-	if cmd.Token == "" {
+	token := strings.TrimSpace(cmd.Token)
+	if token == "" {
 		return nil, application.ErrInvalidInput
 	}
 
-	inv, err := h.inviteRepo.FindByToken(ctx, cmd.Token)
+	inv, err := h.inviteRepo.FindByToken(ctx, token)
 	if err != nil {
 		if errors.Is(err, user.ErrInvitationNotFound) {
 			return nil, application.ErrInvitationNotFound
@@ -128,11 +130,12 @@ func (h *InvitationCommandHandler) Accept(ctx context.Context, cmd AcceptInvitat
 
 // Reject rejects a pending invitation.
 func (h *InvitationCommandHandler) Reject(ctx context.Context, cmd RejectInvitationCommand) (*user.CaregiverInvitation, error) {
-	if cmd.Token == "" {
+	token := strings.TrimSpace(cmd.Token)
+	if token == "" {
 		return nil, application.ErrInvalidInput
 	}
 
-	inv, err := h.inviteRepo.FindByToken(ctx, cmd.Token)
+	inv, err := h.inviteRepo.FindByToken(ctx, token)
 	if err != nil {
 		if errors.Is(err, user.ErrInvitationNotFound) {
 			return nil, application.ErrInvitationNotFound

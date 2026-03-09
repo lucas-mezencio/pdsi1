@@ -109,3 +109,27 @@ Defaults are in `.env`:
 - `DATABASE_URL`
 - `REDIS_ADDR`
 - `HTTP_ADDR`
+- `FIREBASE_CREDENTIALS_FILE`
+- `FIREBASE_WEB_API_KEY`
+
+## Firebase Auth (email/password)
+
+Auth endpoints:
+
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+
+`register` creates the account in Firebase Authentication and stores the user in Postgres with `firebase_id`.
+`login` validates credentials in Firebase and returns the linked local user.
+
+Examples:
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Maria","email":"maria@example.com","phone":"+5534999999999","password":"Password123!","role":"ELDERLY"}'
+
+curl -s -X POST http://localhost:8080/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"maria@example.com","password":"Password123!"}'
+```

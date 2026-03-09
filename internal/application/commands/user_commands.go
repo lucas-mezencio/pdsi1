@@ -13,6 +13,7 @@ type CreateUserCommand struct {
 	Name          string
 	Email         string
 	Phone         string
+	FirebaseID    string
 	FirebaseToken string
 	Role          string // "ELDERLY" or "CAREGIVER" (defaults to "ELDERLY")
 }
@@ -58,6 +59,9 @@ func (h *UserCommandHandler) Create(ctx context.Context, cmd CreateUserCommand) 
 	newUser, err := user.NewUser(cmd.Name, cmd.Email, cmd.Phone, cmd.FirebaseToken, role)
 	if err != nil {
 		return nil, err
+	}
+	if cmd.FirebaseID != "" {
+		newUser.LinkFirebaseAccount(cmd.FirebaseID)
 	}
 
 	if err := h.repo.Save(ctx, newUser); err != nil {

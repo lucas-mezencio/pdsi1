@@ -10,10 +10,11 @@ import (
 )
 
 type mockDoctorRepo struct {
-	findByIDFn      func(ctx context.Context, id string) (*doctor.Doctor, error)
-	findByEmailFn   func(ctx context.Context, email string) (*doctor.Doctor, error)
-	findByLicenseFn func(ctx context.Context, license string) (*doctor.Doctor, error)
-	findAllFn       func(ctx context.Context) ([]*doctor.Doctor, error)
+	findByIDFn         func(ctx context.Context, id string) (*doctor.Doctor, error)
+	findByEmailFn      func(ctx context.Context, email string) (*doctor.Doctor, error)
+	findByFirebaseIDFn func(ctx context.Context, firebaseID string) (*doctor.Doctor, error)
+	findByLicenseFn    func(ctx context.Context, license string) (*doctor.Doctor, error)
+	findAllFn          func(ctx context.Context) ([]*doctor.Doctor, error)
 }
 
 func (m *mockDoctorRepo) Save(ctx context.Context, entity *doctor.Doctor) error { return nil }
@@ -26,6 +27,12 @@ func (m *mockDoctorRepo) FindByID(ctx context.Context, id string) (*doctor.Docto
 func (m *mockDoctorRepo) FindByEmail(ctx context.Context, email string) (*doctor.Doctor, error) {
 	if m.findByEmailFn != nil {
 		return m.findByEmailFn(ctx, email)
+	}
+	return nil, doctor.ErrDoctorNotFound
+}
+func (m *mockDoctorRepo) FindByFirebaseID(ctx context.Context, firebaseID string) (*doctor.Doctor, error) {
+	if m.findByFirebaseIDFn != nil {
+		return m.findByFirebaseIDFn(ctx, firebaseID)
 	}
 	return nil, doctor.ErrDoctorNotFound
 }
