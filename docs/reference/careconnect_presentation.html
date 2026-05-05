@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CareConnect - Apresentação</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #000;
+            overflow: hidden;
+            color: #fff;
+        }
+
+        .slide {
+            width: 100vw;
+            height: 100vh;
+            display: none;
+            padding: 80px 100px;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #7e22ce 100%);
+            position: relative;
+        }
+
+        .slide.active {
+            display: flex;
+            flex-direction: column;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* SLIDE CAPA */
+        .slide-capa {
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .logo-grande {
+            font-size: 120px;
+            margin-bottom: 30px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .slide-capa h1 {
+            font-size: 80px;
+            font-weight: 800;
+            margin-bottom: 20px;
+            letter-spacing: -2px;
+        }
+
+        .slide-capa .subtitle {
+            font-size: 32px;
+            font-weight: 400;
+            opacity: 0.9;
+            margin-bottom: 60px;
+        }
+
+        .slide-capa .info {
+            font-size: 24px;
+            opacity: 0.8;
+        }
+
+        /* SLIDES CONTEÚDO */
+        .slide-header {
+            margin-bottom: 50px;
+        }
+
+        .slide-header h2 {
+            font-size: 56px;
+            font-weight: 800;
+            margin-bottom: 15px;
+        }
+
+        .slide-header .subtitle {
+            font-size: 24px;
+            opacity: 0.8;
+        }
+
+        /* GRID 2x2 */
+        .grid-2x2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            flex: 1;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 40px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .card-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+
+        .card h3 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 15px;
+        }
+
+        .card p {
+            font-size: 20px;
+            line-height: 1.6;
+            opacity: 0.9;
+        }
+
+        /* LISTA VERTICAL */
+        .list-vertical {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+            flex: 1;
+        }
+
+        .list-item {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 35px 40px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 25px;
+        }
+
+        .list-item-icon {
+            font-size: 40px;
+            min-width: 60px;
+        }
+
+        .list-item-content h3 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .list-item-content p {
+            font-size: 18px;
+            opacity: 0.9;
+            line-height: 1.5;
+        }
+
+        /* BADGES */
+        .badges-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 40px;
+        }
+
+        .badge {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            padding: 18px 35px;
+            border-radius: 50px;
+            font-size: 22px;
+            font-weight: 600;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .section-title {
+            font-size: 32px;
+            font-weight: 700;
+            text-align: center;
+            margin: 50px 0 30px 0;
+        }
+
+        /* TELA DE INTERFACE */
+        .screenshots {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .screenshot-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 25px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            text-align: center;
+        }
+
+        .screenshot-card h4 {
+            font-size: 24px;
+            margin-bottom: 12px;
+            font-weight: 700;
+        }
+
+        .screenshot-card p {
+            font-size: 16px;
+            opacity: 0.9;
+            line-height: 1.4;
+        }
+
+        /* SLIDE FINAL */
+        .final-message {
+            text-align: center;
+            margin-top: 50px;
+            padding: 40px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .final-message h3 {
+            font-size: 48px;
+            font-weight: 800;
+            margin-bottom: 20px;
+        }
+
+        .final-message p {
+            font-size: 28px;
+            opacity: 0.9;
+        }
+
+        /* CONTROLES */
+        .controls {
+            position: fixed;
+            bottom: 40px;
+            right: 40px;
+            display: flex;
+            gap: 15px;
+            z-index: 1000;
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            color: white;
+            padding: 15px 30px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .slide-counter {
+            position: fixed;
+            bottom: 40px;
+            left: 40px;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: 600;
+            border: 2px solid rgba(255, 255, 255, 0.4);
+        }
+
+        /* INSTRUÇÕES */
+        .instructions {
+            position: fixed;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            padding: 12px 25px;
+            border-radius: 50px;
+            font-size: 14px;
+            opacity: 0.7;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        /* GRID 3 COLUNAS para arquitetura */
+        .grid-3col {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 25px;
+            margin-top: 30px;
+        }
+
+        .col-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 30px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .col-card h4 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 15px;
+        }
+
+        .col-card ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .col-card li {
+            font-size: 16px;
+            padding: 8px 0;
+            opacity: 0.9;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .col-card li:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="instructions">Use as setas ← → ou os botões para navegar</div>
+    <div class="slide-counter" id="counter">1 / 8</div>
+
+    <!-- SLIDE 1: CAPA -->
+    <div class="slide slide-capa active">
+        <div class="logo-grande">❤️➕</div>
+        <h1>CareConnect</h1>
+        <p class="subtitle">Cuidado e conexão no gerenciamento de medicamentos</p>
+        <div class="info">
+            <p style="margin-bottom: 15px; font-size: 28px; font-weight: 600;">Projeto PDSI 1 - UFU</p>
+            <p>Grupo 6: Gabriel Nogueira, Guilherme Borba, Felipe Duarte,<br>Lucas Mezencio, Luiz Felipe Pereira, Leticia Paula</p>
+        </div>
+    </div>
+
+    <!-- SLIDE 2: PROBLEMA -->
+    <div class="slide">
+        <div class="slide-header">
+            <h2>O Problema</h2>
+            <p class="subtitle">Desafios no gerenciamento de medicamentos</p>
+        </div>
+        <div class="grid-2x2">
+            <div class="card">
+                <div class="card-icon">👴</div>
+                <h3>Idosos</h3>
+                <p>Dificuldade em lembrar horários e dosagens corretas dos medicamentos prescritos</p>
+            </div>
+            <div class="card">
+                <div class="card-icon">👨‍👩‍👧</div>
+                <h3>Cuidadores</h3>
+                <p>Impossibilidade de acompanhar em tempo real a adesão ao tratamento</p>
+            </div>
+            <div class="card">
+                <div class="card-icon">⚠️</div>
+                <h3>Riscos à Saúde</h3>
+                <p>Baixa adesão medicamentosa pode agravar quadros de saúde e gerar complicações</p>
+            </div>
+            <div class="card">
+                <div class="card-icon">📱</div>
+                <h3>Desafio Técnico</h3>
+                <p>Necessidade de sistema simples, acessível e com monitoramento remoto eficiente</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- SLIDE 3: SOLUÇÃO -->
+    <div class="slide">
+        <div class="slide-header">
+            <h2>Nossa Solução</h2>
+            <p class="subtitle">CareConnect: tecnologia a favor da saúde</p>
+        </div>
+        <div class="list-vertical">
+            <div class="list-item">
+                <div class="list-item-icon">🔔</div>
+                <div class="list-item-content">
+                    <h3>Lembretes Inteligentes Multicanal</h3>
+                    <p>Notificações push, SMS e ligações telefônicas automatizadas nos horários corretos de cada medicamento</p>
+                </div>
+            </div>
+            <div class="list-item">
+                <div class="list-item-icon">👁️</div>
+                <div class="list-item-content">
+                    <h3>Monitoramento Remoto em Tempo Real</h3>
+                    <p>Cuidadores e familiares acompanham se as doses foram tomadas e recebem alertas de não adesão</p>
+                </div>
+            </div>
+            <div class="list-item">
+                <div class="list-item-icon">📋</div>
+                <div class="list-item-content">
+                    <h3>Integração com Prescrição Digital</h3>
+                    <p>Sistema preparado para integrar com Memed e receber dados de prescrição automaticamente</p>
+                </div>
+            </div>
+            <div class="list-item">
+                <div class="list-item-icon">♿</div>
+                <div class="list-item-content">
+                    <h3>Acessibilidade Total para Idosos</h3>
+                    <p>Interface otimizada: textos grandes, alto contraste, botões amplos e compatibilidade com leitores de tela</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SLIDE 4: FUNCIONALIDADES -->
+    <div class="slide">
+        <div class="slide-header">
+            <h2>Funcionalidades Principais</h2>
+            <p class="subtitle">Recursos desenvolvidos no MVP</p>
+        </div>
+        <div class="grid-2x2">
+            <div class="card">
+                <div class="card-icon">👤</div>
+                <h3>Perfis Duplos</h3>
+                <p>Sistema com dois tipos de conta: perfil Idoso com interface simplificada e perfil Cuidador com dashboard completo</p>
+            </div>
+            <div class="card">
+                <div class="card-icon">📊</div>
+                <h3>Dashboard Estatístico</h3>
+                <p>Visualização de doses tomadas, perdidas e pendentes com taxa de adesão calculada automaticamente</p>
+            </div>
+            <div class="card">
+                <div class="card-icon">✅</div>
+                <h3>Confirmação Simples</h3>
+                <p>Botão "TOMEI" grande e intuitivo para idosos confirmarem doses com um único toque</p>
+            </div>
+            <div class="card">
+                <div class="card-icon">🚨</div>
+                <h3>Alertas Automáticos</h3>
+                <p>Cuidadores recebem notificações imediatas em caso de doses não tomadas no horário</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- SLIDE 5: INTERFACE -->
+    <div class="slide">
+        <div class="slide-header">
+            <h2>Interface do Usuário</h2>
+            <p class="subtitle">Design focado em acessibilidade e usabilidade</p>
+        </div>
+        <div class="screenshots">
+            <div class="screenshot-card">
+                <h4>🏠 Boas-vindas</h4>
+                <p>Tela inicial limpa com logo, slogan e opções claras de entrar ou criar conta</p>
+            </div>
+            <div class="screenshot-card">
+                <h4>🔐 Login/Cadastro</h4>
+                <p>Processo simples com seleção de perfil (Idoso ou Cuidador) e login rápido para demo</p>
+            </div>
+            <div class="screenshot-card">
+                <h4>💊 Tela do Idoso</h4>
+                <p>Lista de medicamentos com horários, status visual e botão grande de confirmação</p>
+            </div>
+        </div>
+        <div class="screenshots" style="margin-top: 20px;">
+            <div class="screenshot-card">
+                <h4>👨‍⚕️ Painel Cuidador</h4>
+                <p>Visão geral de todos os idosos vinculados com status crítico destacado em vermelho</p>
+            </div>
+            <div class="screenshot-card">
+                <h4>📈 Detalhes</h4>
+                <p>Histórico completo de medicamentos e doses com taxa de adesão individual</p>
+            </div>
+            <div class="screenshot-card">
+                <h4>🎨 Acessibilidade</h4>
+                <p>Alto contraste, tipografia grande e navegação simplificada seguindo WCAG</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- SLIDE 6: ARQUITETURA -->
+    <div class="slide">
+        <div class="slide-header">
+            <h2>Arquitetura do Sistema</h2>
+            <p class="subtitle">Estrutura modular e escalável</p>
+        </div>
+        <div class="grid-3col">
+            <div class="col-card">
+                <h4>📱 Presentation</h4>
+                <ul>
+                    <li>WelcomeScreen</li>
+                    <li>LoginScreen</li>
+                    <li>SignupScreen</li>
+                    <li>ElderlyHomeScreen</li>
+                    <li>CaregiverDashboard</li>
+                    <li>Componentes reutilizáveis</li>
+                </ul>
+            </div>
+            <div class="col-card">
+                <h4>🔄 State & Services</h4>
+                <ul>
+                    <li>Zustand Store</li>
+                    <li>AsyncStorage</li>
+                    <li>Auth Service</li>
+                    <li>Notification Service</li>
+                    <li>Memed Integration</li>
+                    <li>Twilio Integration</li>
+                </ul>
+            </div>
+            <div class="col-card">
+                <h4>💾 Data Layer</h4>
+                <ul>
+                    <li>Mock Data (MVP)</li>
+                    <li>User Entity</li>
+                    <li>Medication Entity</li>
+                    <li>DoseRecord Entity</li>
+                    <li>Preparado para Firebase</li>
+                    <li>Preparado para APIs</li>
+                </ul>
+            </div>
+        </div>
+        <div class="list-item" style="margin-top: 30px;">
+            <div class="list-item-icon">🏗️</div>
+            <div class="list-item-content">
+                <h3>Service Layer Pattern</h3>
+                <p>Separação de responsabilidades, alta coesão, baixo acoplamento e organização orientada para manutenção e testes</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- SLIDE 7: TECNOLOGIAS -->
+    <div class="slide">
+        <div class="slide-header">
+            <h2>Stack Tecnológico</h2>
+            <p class="subtitle">Ferramentas modernas e eficientes</p>
+        </div>
+        <div style="flex: 1;">
+            <h3 style="font-size: 32px; margin-bottom: 20px;">🛠️ Tecnologias Principais</h3>
+            <div class="badges-container">
+                <div class="badge">React Native</div>
+                <div class="badge">TypeScript</div>
+                <div class="badge">Expo SDK 51</div>
+                <div class="badge">Zustand</div>
+                <div class="badge">NativeWind (Tailwind)</div>
+                <div class="badge">AsyncStorage</div>
+                <div class="badge">Expo Notifications</div>
+            </div>
+
+            <h3 class="section-title">📦 Integrações Futuras (Produção)</h3>
+            <div class="badges-container">
+                <div class="badge">Firebase Auth</div>
+                <div class="badge">Cloud Firestore</div>
+                <div class="badge">Twilio API</div>
+                <div class="badge">Memed API</div>
+            </div>
+
+            <h3 class="section-title">🎯 Plataformas</h3>
+            <div class="badges-container">
+                <div class="badge">Android</div>
+                <div class="badge">iOS</div>
+                <div class="badge">Web</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SLIDE 8: CONCLUSÃO -->
+    <div class="slide">
+        <div class="slide-header">
+            <h2>Próximos Passos</h2>
+            <p class="subtitle">Evolução do projeto</p>
+        </div>
+        <div class="list-vertical">
+            <div class="list-item">
+                <div class="list-item-icon">1️⃣</div>
+                <div class="list-item-content">
+                    <h3>Implementar Integrações Reais</h3>
+                    <p>Conectar Firebase para autenticação e banco de dados, Twilio para SMS/ligações e Memed para prescrições</p>
+                </div>
+            </div>
+            <div class="list-item">
+                <div class="list-item-icon">2️⃣</div>
+                <div class="list-item-content">
+                    <h3>Testes com Usuários Reais</h3>
+                    <p>Validar usabilidade com idosos e cuidadores, coletar feedback e ajustar interface</p>
+                </div>
+            </div>
+            <div class="list-item">
+                <div class="list-item-icon">3️⃣</div>
+                <div class="list-item-content">
+                    <h3>Expandir Funcionalidades</h3>
+                    <p>Adicionar relatórios médicos em PDF, gráficos de evolução, lembretes de consultas e histórico completo</p>
+                </div>
+            </div>
+        </div>
+        <div class="final-message">
+            <h3>❤️ CareConnect</h3>
+            <p>Conectando cuidado, tecnologia e saúde</p>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="btn" id="prevBtn" onclick="previousSlide()">← Anterior</button>
+        <button class="btn" id="nextBtn" onclick="nextSlide()">Próximo →</button>
+    </div>
+
+    <script>
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+
+        function updateSlide() {
+            slides.forEach((slide, index) => {
+                slide.classList.remove('active');
+                if (index === currentSlide) {
+                    slide.classList.add('active');
+                }
+            });
+
+            document.getElementById('counter').textContent = `${currentSlide + 1} / ${totalSlides}`;
+            document.getElementById('prevBtn').disabled = currentSlide === 0;
+            document.getElementById('nextBtn').disabled = currentSlide === totalSlides - 1;
+        }
+
+        function nextSlide() {
+            if (currentSlide < totalSlides - 1) {
+                currentSlide++;
+                updateSlide();
+            }
+        }
+
+        function previousSlide() {
+            if (currentSlide > 0) {
+                currentSlide--;
+                updateSlide();
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') {
+                e.preventDefault();
+                nextSlide();
+            }
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                previousSlide();
+            }
+            if (e.key === 'Home') {
+                e.preventDefault();
+                currentSlide = 0;
+                updateSlide();
+            }
+            if (e.key === 'End') {
+                e.preventDefault();
+                currentSlide = totalSlides - 1;
+                updateSlide();
+            }
+        });
+
+        updateSlide();
+    </script>
+</body>
+</html>
