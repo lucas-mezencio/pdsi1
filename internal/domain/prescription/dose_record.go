@@ -70,6 +70,7 @@ type DoseRecordRepository interface {
 	FindByUserID(ctx context.Context, userID string) ([]*DoseRecord, error)
 	FindByPrescriptionID(ctx context.Context, prescriptionID string) ([]*DoseRecord, error)
 	FindPendingBefore(ctx context.Context, before time.Time) ([]*DoseRecord, error)
+	DeleteByUserID(ctx context.Context, userID string) error
 }
 
 // Domain errors

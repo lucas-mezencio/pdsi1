@@ -14,13 +14,16 @@ import (
 
 // ExtendedServer handles API endpoints that are not part of the generated spec.
 type ExtendedServer struct {
-	userRepo           user.Repository
-	authCommands       *commands.AuthCommandHandler
-	doctorAuthCommands *commands.DoctorAuthCommandHandler
-	inviteCommands     *commands.InvitationCommandHandler
-	doseCommands       *commands.DoseRecordCommandHandler
-	doseQueries        *queries.DoseRecordQueryHandler
-	linkedUserQueries  *queries.LinkedUserQueryHandler
+	userRepo               user.Repository
+	authCommands           *commands.AuthCommandHandler
+	doctorAuthCommands    *commands.DoctorAuthCommandHandler
+	inviteCommands         *commands.InvitationCommandHandler
+	doseCommands           *commands.DoseRecordCommandHandler
+	doseQueries            *queries.DoseRecordQueryHandler
+	linkedUserQueries      *queries.LinkedUserQueryHandler
+	prescriptionCommands   *commands.PrescriptionCommandHandler
+	userCommandsWithDelete *commands.UserCommandHandlerWithDelete
+	userQueriesWithExport  *queries.UserQueryHandler
 }
 
 // NewExtendedServer creates an ExtendedServer.
@@ -32,15 +35,21 @@ func NewExtendedServer(
 	doseCommands *commands.DoseRecordCommandHandler,
 	doseQueries *queries.DoseRecordQueryHandler,
 	linkedUserQueries *queries.LinkedUserQueryHandler,
+	prescriptionCommands *commands.PrescriptionCommandHandler,
+	userCommandsWithDelete *commands.UserCommandHandlerWithDelete,
+	userQueriesWithExport *queries.UserQueryHandler,
 ) *ExtendedServer {
 	return &ExtendedServer{
-		userRepo:           userRepo,
-		authCommands:       authCommands,
-		doctorAuthCommands: doctorAuthCommands,
-		inviteCommands:     inviteCommands,
-		doseCommands:       doseCommands,
-		doseQueries:        doseQueries,
-		linkedUserQueries:  linkedUserQueries,
+		userRepo:               userRepo,
+		authCommands:           authCommands,
+		doctorAuthCommands:     doctorAuthCommands,
+		inviteCommands:         inviteCommands,
+		doseCommands:           doseCommands,
+		doseQueries:            doseQueries,
+		linkedUserQueries:      linkedUserQueries,
+		prescriptionCommands:   prescriptionCommands,
+		userCommandsWithDelete: userCommandsWithDelete,
+		userQueriesWithExport:  userQueriesWithExport,
 	}
 }
 
@@ -358,6 +367,45 @@ func (s *ExtendedServer) MarkDoseMissed(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusOK, record)
+}
+
+// --- LGPD compliance endpoints ---
+
+// DeleteUser handles DELETE /users/{userId} (full data deletion for LGPD compliance)
+func (s *ExtendedServer) DeleteUser(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "userId")
+	callerID := callerUserID(r)
+
+	// Users can only delete their own data unless they are a doctor or admin
+	if callerID != "" && callerID != userID {
+		writeError(w, http.StatusForbidden, "access denied", "users can only delete their own data")
+		return
+	}
+
+	if err := s.userCommandsWithDelete.DeleteWithLGPD(r.Context(), commands.DeleteUserCommand{ID: userID}); err != nil {
+		writeExtendedError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ExportUserData handles GET /users/{userId}/export (data portability for LGPD compliance)
+func (s *ExtendedServer) ExportUserData(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "userId")
+	callerID := callerUserID(r)
+
+	// Users can only export their own data unless they are a doctor or admin
+	if callerID != "" && callerID != userID {
+		writeError(w, http.StatusForbidden, "access denied", "users can only export their own data")
+		return
+	}
+
+	result, err := s.userQueriesWithExport.ExportUserData(r.Context(), queries.ExportUserDataQuery{ID: userID})
+	if err != nil {
+		writeExtendedError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func writeExtendedError(w http.ResponseWriter, err error) {

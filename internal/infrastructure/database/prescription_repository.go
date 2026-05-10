@@ -149,6 +149,13 @@ func (r *PrescriptionRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+// DeleteByUserID removes all prescriptions for a user.
+func (r *PrescriptionRepository) DeleteByUserID(ctx context.Context, userID string) error {
+	query := `DELETE FROM prescriptions WHERE user_id = $1`
+	_, err := r.db.ExecContext(ctx, query, userID)
+	return err
+}
+
 // Exists checks if a prescription exists by ID.
 func (r *PrescriptionRepository) Exists(ctx context.Context, id string) (bool, error) {
 	query := `SELECT EXISTS (SELECT 1 FROM prescriptions WHERE id = $1)`

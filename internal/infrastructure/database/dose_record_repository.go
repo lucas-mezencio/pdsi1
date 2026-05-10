@@ -121,6 +121,13 @@ func (r *DoseRecordRepository) FindPendingBefore(ctx context.Context, before tim
 	return r.queryDoseRecords(ctx, query, before.Format(time.RFC3339Nano))
 }
 
+// DeleteByUserID removes all dose records for a user.
+func (r *DoseRecordRepository) DeleteByUserID(ctx context.Context, userID string) error {
+	query := `DELETE FROM dose_records WHERE user_id = $1`
+	_, err := r.db.ExecContext(ctx, query, userID)
+	return err
+}
+
 func (r *DoseRecordRepository) queryDoseRecords(ctx context.Context, query string, arg string) ([]*prescription.DoseRecord, error) {
 	rows, err := r.db.QueryContext(ctx, query, arg)
 	if err != nil {

@@ -41,6 +41,10 @@ func NewRouter(server gen.ServerInterface, ext *ExtendedServer) http.Handler {
 		r.Get("/users/{userId}/dose-records", ext.ListDoseRecords)
 		r.Post("/dose-records/{doseRecordId}/confirm", ext.ConfirmDose)
 		r.Post("/dose-records/{doseRecordId}/miss", ext.MarkDoseMissed)
+
+		// LGPD compliance
+		r.Delete("/users/{userId}", ext.DeleteUser)
+		r.Get("/users/{userId}/export", ext.ExportUserData)
 	})
 
 	return router

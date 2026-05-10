@@ -28,6 +28,9 @@ type Repository interface {
 	// Delete removes a prescription by ID
 	Delete(ctx context.Context, id string) error
 
+	// DeleteByUserID removes all prescriptions for a user (LGPD cascade)
+	DeleteByUserID(ctx context.Context, userID string) error
+
 	// Exists checks if a prescription exists by ID
 	Exists(ctx context.Context, id string) (bool, error)
 }

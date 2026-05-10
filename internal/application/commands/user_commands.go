@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com.br/lucas-mezencio/pdsi1/internal/application"
+	"github.com.br/lucas-mezencio/pdsi1/internal/domain/prescription"
 	"github.com.br/lucas-mezencio/pdsi1/internal/domain/user"
 )
 
@@ -48,9 +49,25 @@ type UserCommandHandler struct {
 	repo user.Repository
 }
 
+// UserCommandHandlerWithDelete handles user write operations with LGPD cascade delete.
+type UserCommandHandlerWithDelete struct {
+	repo      user.Repository
+	prescRepo prescription.Repository
+	doseRepo  prescription.DoseRecordRepository
+}
+
 // NewUserCommandHandler creates a UserCommandHandler.
 func NewUserCommandHandler(repo user.Repository) *UserCommandHandler {
 	return &UserCommandHandler{repo: repo}
+}
+
+// NewUserCommandHandlerWithDelete creates a UserCommandHandler with cascade delete support.
+func NewUserCommandHandlerWithDelete(repo user.Repository, prescRepo prescription.Repository, doseRepo prescription.DoseRecordRepository) *UserCommandHandlerWithDelete {
+	return &UserCommandHandlerWithDelete{
+		repo:      repo,
+		prescRepo: prescRepo,
+		doseRepo:  doseRepo,
+	}
 }
 
 // Create creates a new user.
@@ -157,6 +174,33 @@ func (h *UserCommandHandler) Delete(ctx context.Context, cmd DeleteUserCommand) 
 	}
 	if !exists {
 		return application.ErrUserNotFound
+	}
+
+	return h.repo.Delete(ctx, cmd.ID)
+}
+
+// DeleteWithLGPD removes a user and cascades deletion to prescriptions and dose records (LGPD compliance).
+func (h *UserCommandHandlerWithDelete) DeleteWithLGPD(ctx context.Context, cmd DeleteUserCommand) error {
+	if cmd.ID == "" {
+		return application.ErrInvalidInput
+	}
+
+	exists, err := h.repo.Exists(ctx, cmd.ID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return application.ErrUserNotFound
+	}
+
+	// Cascade delete prescriptions first
+	if err := h.prescRepo.DeleteByUserID(ctx, cmd.ID); err != nil {
+		return err
+	}
+
+	// Cascade delete dose records
+	if err := h.doseRepo.DeleteByUserID(ctx, cmd.ID); err != nil {
+		return err
 	}
 
 	return h.repo.Delete(ctx, cmd.ID)
