@@ -1,0 +1,161 @@
+@startuml
+' ============================================================================
+' CareConnect — Architecture Diagram
+' Clean Architecture with CQRS, message queuing, and notification scheduling
+' ============================================================================
+
+skinparam shadowing false
+skinparam defaultFontSize 11
+skinparam rectangle-rounded 5
+skinparam packagePadding 10
+
+title "CareConnect — Architecture Overview"
+
+package "CareConnect" <<Container>> {
+
+  package "cmd/api" <<Deployment Unit>> #F5F5F5 {
+    [main.go\nEntry Point] #White
+  }
+
+  package "internal/api" <<Layer>> #FAFAFA {
+    [Router]
+    [Middleware (RBAC)]
+    [ExtendedServer]
+    [Server (generated)]
+  }
+
+  package "internal/application" <<Layer>> #FAFAFA {
+    [Commands] #White
+    [Queries] #White
+    [ports.go\nNotificationScheduler]
+  }
+
+  package "internal/domain" <<Layer>> #FAFAFA {
+    [user/]\n[doctor/]\n[prescription/]\n[notification/]
+  }
+
+  package "internal/infrastructure" <<Layer>> #FAFAFA {
+    [database/]\nPostgreSQL Repositories
+    [scheduler/]\nRedisScheduler + Worker
+    [notification/]\nFirebaseSender + DummySender
+    [messaging/]\nWatermill Redis Stream
+    [firebaseauth/]\nFirebase Auth
+  }
+}
+
+' ----------------------------------------------------------------------------
+' External Services
+' ----------------------------------------------------------------------------
+
+package "PostgreSQL" <<External>> #FFF8DC {
+  database "mednotify" as db #FFFAF0
+}
+
+package "Redis" <<External>> #FFF8DC {
+  database "mednotify:notification_schedule" as redis_sched #FFF0F5
+  database "mednotify:notification_jobs" as redis_jobs #FFF0F5
+  database "mednotify:prescription_jobs:{id}" as redis_presc #FFF0F5
+  database "notifications\n(Watermill stream)" as redis_stream #FFF0F5
+}
+
+package "Firebase" <<External>> #E6F3FF {
+  cloud "Firebase Auth\n(UID management)" as fb_auth #E6F3FF
+  cloud "Firebase Cloud\nMessaging" as fcm #E6F3FF
+}
+
+package "Client App" <<External>> #F0FFF0 {
+  actor "Mobile Device\n(Elderly User)" as elderly #F0FFF0
+  actor "Mobile Device\n(Caregiver)" as caregiver #F0FFF0
+}
+
+' ----------------------------------------------------------------------------
+' Connections: API → Domain ← Application ← Infrastructure
+' ----------------------------------------------------------------------------
+
+[main.go\nEntry Point] --> [Router]
+[Router] --> [ExtendedServer]
+[ExtendedServer] --> [Commands]
+[ExtendedServer] --> [Queries]
+[ExtendedServer] --> [Middleware (RBAC)]
+
+[Commands] --> [user/]
+[Commands] --> [doctor/]
+[Commands] --> [prescription/]
+[Queries] --> [user/]
+[Queries] --> [doctor/]
+[Queries] --> [prescription/]
+
+[Commands] ..> [ports.go\nNotificationScheduler] : uses
+
+' ----------------------------------------------------------------------------
+' Repository pattern: domain interfaces ← infrastructure implementations
+' ----------------------------------------------------------------------------
+
+user/ <-- [database/]\nUserRepository
+user/ <-- [database/]\nInvitationRepository
+doctor/ <-- [database/]\nDoctorRepository
+prescription/ <-- [database/]\nPrescriptionRepository
+prescription/ <-- [database/]\nDoseRecordRepository
+
+[database/] --> db : reads/writes
+
+' ----------------------------------------------------------------------------
+' Scheduler: Application port → Redis implementation → Worker → Watermill
+' ----------------------------------------------------------------------------
+
+[ports.go\nNotificationScheduler] <|-- [scheduler/]\nRedisScheduler
+
+[RedisScheduler] --> redis_sched : ZADD\nnotification_schedule
+[RedisScheduler] --> redis_jobs : HSET\nnotification_jobs
+[RedisScheduler] --> redis_presc : SADD\nprescription_jobs:{id}
+
+[scheduler/]\nSchedulerWorker --> redis_sched : ZRANGEBYSCORE\n(polls every 250ms)
+[scheduler/]\nSchedulerWorker --> redis_jobs : HGET + pipeline cleanup
+[scheduler/]\nSchedulerWorker --> [messaging/] : Publish()\nWatermill → Redis Stream
+
+' ----------------------------------------------------------------------------
+' Notification fan-out: Consumer → Firebase → devices
+' ----------------------------------------------------------------------------
+
+[messaging/] --> [scheduler/]\nStartNotificationConsumer : Subscribe()\n"notifications"
+
+[StartNotificationConsumer] --> [notification/]\nFirebaseSender : Send()
+[notification/]\nFirebaseSender --> fcm : send()\nPush notification
+[notification/]\nFirebaseSender --> [user/]\nRepository : FindCaregivers()\n(fan-out to linked caregivers)
+
+' ----------------------------------------------------------------------------
+' External: Client App → REST API
+' ----------------------------------------------------------------------------
+
+elderly --> [Router] : HTTPS/REST\nPOST /prescriptions\nPOST /dose-records/{id}/confirm
+elderly --> fcm : receives push\nnotification
+
+caregiver --> [Router] : HTTPS/REST\nGET /users/{id}/caregivers
+caregiver --> fcm : receives push\n(fan-out)
+
+' ----------------------------------------------------------------------------
+' Firebase Auth flow (optional)
+' ----------------------------------------------------------------------------
+
+fb_auth ..-> [firebaseauth/] : verify ID token
+[firebaseauth/] --> user/ : links FirebaseUID\nto User entity
+[firebaseauth/] --> doctor/ : links FirebaseUID\nto Doctor entity
+
+' ----------------------------------------------------------------------------
+' Legend box
+' ----------------------------------------------------------------------------
+
+legend bottom
+|= Layer =|= Role =|
+| cmd/api | Application entry point, wires all dependencies |
+| internal/api | HTTP routing, middleware, request/response handling |
+| internal/application | CQRS commands & queries, application ports |
+| internal/domain | Entities, value objects, repository interfaces |
+| internal/infrastructure | External integrations (DB, Redis, Firebase) |
+|= Pattern =|= Description =|
+| Repository | Domain defines interface; infrastructure implements |
+| CQRS | Commands (writes) / Queries (reads) separated |
+| Dependency Injection | All deps wired in main.go |
+endlegend
+
+@enduml
