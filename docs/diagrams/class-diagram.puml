@@ -1,0 +1,368 @@
+@startuml
+' ============================================================================
+' CareConnect — Class Diagram
+' Medication notification system for elderly users and their caregivers
+' ============================================================================
+
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam monochrome false
+hide empty members
+
+' ----------------------------------------------------------------------------
+' Domain Layer
+' ----------------------------------------------------------------------------
+
+namespace domain.user {
+  enum Role {
+    ELDERLY
+    CAREGIVER
+  }
+
+  enum InvitationStatus {
+    PENDING
+    ACCEPTED
+    REJECTED
+  }
+
+  class User {
+    -ID: string
+    -Name: string
+    -Email: string
+    -Phone: string
+    -FirebaseID: string
+    -FirebaseToken: string
+    -NotificationsEnabled: bool
+    -Role: Role
+    -CreatedAt: time.Time
+    -UpdatedAt: time.Time
+    --
+    +NewUser(name, email, phone, firebaseToken string, role Role) (*User, error)
+    +Update(name, email, phone string) error
+    +UpdateFirebaseToken(token string)
+    +LinkFirebaseAccount(firebaseID string)
+    +EnableNotifications()
+    +DisableNotifications()
+    +IsElderly() bool
+    +IsCaregiver() bool
+  }
+
+  class CaregiverInvitation {
+    -ID: string
+    -CaregiverID: string
+    -ElderlyID: string
+    -Token: string
+    -Status: InvitationStatus
+    -CreatedAt: time.Time
+    -UpdatedAt: time.Time
+    --
+    +NewCaregiverInvitation(caregiverID, elderlyID string) (*CaregiverInvitation, error)
+    +Accept() error
+    +Reject() error
+  }
+
+  interface Repository {
+    +Save(ctx context.Context, user *User) error
+    +FindByID(ctx context.Context, id string) (*User, error)
+    +FindByEmail(ctx context.Context, email string) (*User, error)
+    +FindByFirebaseID(ctx context.Context, firebaseID string) (*User, error)
+    +FindAll(ctx context.Context) ([]*User, error)
+    +Delete(ctx context.Context, id string) error
+    +Exists(ctx context.Context, id string) (bool, error)
+    +FindCaregivers(ctx context.Context, elderlyID string) ([]*User, error)
+    +FindCharges(ctx context.Context, caregiverID string) ([]*User, error)
+    +IsLinked(ctx context.Context, caregiverID, elderlyID string) (bool, error)
+    +LinkUsers(ctx context.Context, caregiverID, elderlyID string) error
+    +UnlinkUsers(ctx context.Context, caregiverID, elderlyID string) error
+  }
+
+  interface InvitationRepository {
+    +Save(ctx context.Context, inv *CaregiverInvitation) error
+    +FindByToken(ctx context.Context, token string) (*CaregiverInvitation, error)
+    +FindByElderlyID(ctx context.Context, elderlyID string) ([]*CaregiverInvitation, error)
+    +FindByCaregiverID(ctx context.Context, caregiverID string) ([]*CaregiverInvitation, error)
+  }
+}
+
+namespace domain.doctor {
+  class Doctor {
+    -ID: string
+    -Name: string
+    -Email: string
+    -Phone: string
+    -FirebaseID: string
+    -Specialty: string
+    -LicenseNumber: string
+    -CreatedAt: time.Time
+    -UpdatedAt: time.Time
+    --
+    +NewDoctor(name, email, phone, specialty, licenseNumber string) (*Doctor, error)
+    +Update(name, email, phone, specialty string) error
+    +LinkFirebaseAccount(firebaseID string)
+  }
+
+  interface Repository {
+    +Save(ctx context.Context, doctor *Doctor) error
+    +FindByID(ctx context.Context, id string) (*Doctor, error)
+    +FindByEmail(ctx context.Context, email string) (*Doctor, error)
+    +FindByFirebaseID(ctx context.Context, firebaseID string) (*Doctor, error)
+    +FindByLicenseNumber(ctx context.Context, licenseNumber string) (*Doctor, error)
+    +FindAll(ctx context.Context) ([]*Doctor, error)
+    +Delete(ctx context.Context, id string) error
+    +Exists(ctx context.Context, id string) (bool, error)
+  }
+}
+
+namespace domain.prescription {
+  enum DoseStatus {
+    PENDING
+    TAKEN
+    MISSED
+  }
+
+  class Medicament {
+    -Name: string
+    -Dosage: string
+    -Frequency: string       ' HH:MM — interval between doses
+    -Times: []string        ' specific clock times (e.g. 08:00, 20:00)
+    -Doses: int             ' total number of doses
+    --
+    +Validate() error
+    +GetNextNotificationTime(now time.Time) (time.Time, error)
+    +CalculateEndDate(startDate time.Time) time.Time
+    +CalculateDaysRemaining(startDate, now time.Time) int
+    +IsCompleted(startDate, now time.Time) bool
+  }
+
+  class Prescription {
+    -ID: string
+    -UserID: string
+    -MedicID: string
+    -Medicaments: []Medicament
+    -Active: bool
+    -CreatedAt: time.Time
+    -UpdatedAt: time.Time
+    --
+    +NewPrescription(userID, medicID string, medicaments []Medicament) (*Prescription, error)
+    +Validate() error
+    +Activate()
+    +Deactivate()
+    +UpdateMedicaments(medicaments []Medicament) error
+    +GetAllNotificationTimes() []NotificationSchedule
+    +IsCompleted(now time.Time) bool
+    +GetEndDate() time.Time
+  }
+
+  class NotificationSchedule <<struct>> {
+    PrescriptionID: string
+    UserID: string
+    MedicamentName: string
+    Dosage: string
+    Time: string          ' HH:MM
+    Frequency: string    ' HH:MM or HH:MM:SS
+    TotalDoses: int
+  }
+
+  class DoseRecord {
+    -ID: string
+    -PrescriptionID: string
+    -UserID: string
+    -MedicamentName: string
+    -Dosage: string
+    -ScheduledAt: time.Time
+    -Status: DoseStatus
+    -ConfirmedAt: *time.Time
+    -CreatedAt: time.Time
+    -UpdatedAt: time.Time
+    --
+    +NewDoseRecord(id, prescriptionID, userID, medicamentName, dosage string, scheduledAt time.Time) *DoseRecord
+    +MarkTaken(at time.Time)
+    +MarkMissed()
+  }
+
+  interface Repository {
+    +Save(ctx context.Context, prescription *Prescription) error
+    +FindAll(ctx context.Context) ([]*Prescription, error)
+    +FindByID(ctx context.Context, id string) (*Prescription, error)
+    +FindByUserID(ctx context.Context, userID string) ([]*Prescription, error)
+    +FindByMedicID(ctx context.Context, medicID string) ([]*Prescription, error)
+    +FindActive(ctx context.Context) ([]*Prescription, error)
+    +FindActiveByUserID(ctx context.Context, userID string) ([]*Prescription, error)
+    +Delete(ctx context.Context, id string) error
+    +Exists(ctx context.Context, id string) (bool, error)
+  }
+
+  interface DoseRecordRepository {
+    +Save(ctx context.Context, record *DoseRecord) error
+    +FindByID(ctx context.Context, id string) (*DoseRecord, error)
+    +FindByUserID(ctx context.Context, userID string) ([]*DoseRecord, error)
+    +FindByPrescriptionID(ctx context.Context, prescriptionID string) ([]*DoseRecord, error)
+    +FindPendingBefore(ctx context.Context, before time.Time) ([]*DoseRecord, error)
+  }
+}
+
+' ----------------------------------------------------------------------------
+' Application Layer
+' ----------------------------------------------------------------------------
+
+namespace application {
+  interface NotificationScheduler {
+    +Schedule(ctx context.Context, schedule prescription.NotificationSchedule, startDate time.Time) error
+    +CancelByPrescriptionID(ctx context.Context, prescriptionID string) error
+  }
+}
+
+' ----------------------------------------------------------------------------
+' Infrastructure — Notification
+' ----------------------------------------------------------------------------
+
+namespace infrastructure.notification {
+  struct Notification <<struct>> {
+    UserID: string
+    PrescriptionID: string
+    MedicamentName: string
+    Dosage: string
+    ScheduledAt: string
+    FirebaseToken: string
+  }
+
+  interface Sender {
+    +Send(ctx context.Context, notification Notification) error
+  }
+
+  class FirebaseSender
+  class DummySender
+}
+
+' ----------------------------------------------------------------------------
+' Infrastructure — Scheduler
+' ----------------------------------------------------------------------------
+
+namespace infrastructure.scheduler {
+  class RedisScheduler {
+    -client: redis.UniversalClient
+    -keyPrefix: string
+    --
+    +Schedule(ctx context.Context, schedule prescription.NotificationSchedule, startDate time.Time) error
+    +CancelByPrescriptionID(ctx context.Context, prescriptionID string) error
+  }
+
+  class SchedulerWorker {
+    -client: redis.UniversalClient
+    -publisher: message.Publisher
+    -keyPrefix: string
+    -pollInterval: time.Duration
+    -lookback: time.Duration
+    -store: EventStore
+    -doseStore: DoseRecordStore
+    --
+    +Run(ctx context.Context) error
+    +SetPollInterval(interval time.Duration)
+    +WithDoseRecordStore(ds DoseRecordStore)
+  }
+
+  struct NotificationJob <<struct>> {
+    ID: string
+    PrescriptionID: string
+    UserID: string
+    MedicamentName: string
+    Dosage: string
+    ScheduledAt: time.Time
+  }
+
+  interface EventStore {
+    +Save(ctx context.Context, event NotificationEvent) error
+  }
+
+  interface DoseRecordStore {
+    +CreatePending(ctx context.Context, id, prescriptionID, userID, medicamentName, dosage string, scheduledAt time.Time) error
+  }
+
+  interface CleanupStore {
+    +Delete(ctx context.Context, jobID string) error
+  }
+
+  struct NotificationEvent <<struct>> {
+    ID: string
+    PrescriptionID: string
+    UserID: string
+    MedicamentName: string
+    Dosage: string
+    ScheduledAt: time.Time
+    SentAt: time.Time
+  }
+}
+
+' ----------------------------------------------------------------------------
+' Infrastructure — Database Repositories (implementations)
+' ----------------------------------------------------------------------------
+
+namespace infrastructure.database {
+  class UserRepository
+  class DoctorRepository
+  class PrescriptionRepository
+  class DoseRecordRepository
+  class InvitationRepository
+  class NotificationEventStore
+}
+
+' ----------------------------------------------------------------------------
+' Infrastructure — Messaging
+' ----------------------------------------------------------------------------
+
+namespace infrastructure.messaging {
+  class WatermillLogger
+}
+
+' ----------------------------------------------------------------------------
+' API Layer
+' ----------------------------------------------------------------------------
+
+namespace api {
+  class Router
+  class Middleware
+  class ExtendedServer
+}
+
+' ----------------------------------------------------------------------------
+' Relationships
+' ----------------------------------------------------------------------------
+
+' Domain — User aggregates
+domain.user.User --> domain.user.Role : role
+domain.user.User --> domain.user.InvitationRepository : uses
+domain.user.CaregiverInvitation --> domain.user.InvitationStatus : status
+
+' Domain — Prescription aggregates
+domain.prescription.Prescription o-- domain.prescription.Medicament : medicaments
+domain.prescription.Prescription --> domain.prescription.NotificationSchedule : produces
+domain.prescription.DoseRecord --> domain.prescription.DoseStatus : status
+
+' Repository interfaces implemented by infrastructure
+domain.user.Repository <|.. infrastructure.database.UserRepository
+domain.user.InvitationRepository <|.. infrastructure.database.InvitationRepository
+domain.doctor.Repository <|.. infrastructure.database.DoctorRepository
+domain.prescription.Repository <|.. infrastructure.database.PrescriptionRepository
+domain.prescription.DoseRecordRepository <|.. infrastructure.database.DoseRecordRepository
+infrastructure.scheduler.EventStore <|.. infrastructure.database.NotificationEventStore
+
+' Notification sender implementations
+infrastructure.notification.Sender <|.. infrastructure.notification.FirebaseSender
+infrastructure.notification.Sender <|.. infrastructure.notification.DummySender
+
+' Scheduler implements application port
+application.NotificationScheduler <|.. infrastructure.scheduler.RedisScheduler
+
+' DoseRecordStore wired into SchedulerWorker
+infrastructure.scheduler.SchedulerWorker o-- infrastructure.scheduler.DoseRecordStore
+infrastructure.scheduler.SchedulerWorker o-- infrastructure.scheduler.EventStore
+
+' Watermill publisher used by SchedulerWorker
+infrastructure.scheduler.SchedulerWorker o-- "publisher" message.Publisher
+
+' DoseRecordStore noop implementations (default)
+infrastructure.scheduler.DoseRecordStore <|.. infrastructure.scheduler.noopDoseRecordStore
+infrastructure.scheduler.EventStore <|.. infrastructure.scheduler.noopEventStore
+infrastructure.scheduler.CleanupStore <|.. infrastructure.scheduler.noopCleanup
+
+@enduml
