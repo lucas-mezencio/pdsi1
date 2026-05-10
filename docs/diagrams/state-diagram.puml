@@ -1,0 +1,110 @@
+@startuml
+' ============================================================================
+' CareConnect — State Diagram
+' Covers Prescription, DoseRecord, and CaregiverInvitation state transitions
+' ============================================================================
+
+skinparam shadowing false
+skinparam stateFontSize 12
+skinparam stateBorderRadius 5
+
+title "State Machine Overview"
+
+' ----------------------------------------------------------------------------
+' Prescription — Active toggle (managed by doctor)
+' ----------------------------------------------------------------------------
+
+[*] --> ActiveOff : created (default)
+
+state ActiveOff {
+  [*] --> Draft : NewPrescription\n(active=false)
+  Draft --> Draft : UpdateMedicaments\n(prescription inactive)
+}
+
+state ActiveOn {
+  [*] --> Scheduled : Activate()\n+ scheduleNotifications()
+  Scheduled --> Scheduled : UpdateMedicaments()\n(cancel + reschedule)
+}
+
+ActiveOff --> ActiveOn : Activate()\n**if** medicaments valid
+ActiveOn --> ActiveOff : Deactivate()\n+ cancelNotifications()
+
+ActiveOn --> [*] : Delete()\nor prescription completed
+
+note top of ActiveOn
+  While active, all medicaments
+  are scheduled to Redis
+end note
+
+note top of ActiveOff
+  No notifications are scheduled.
+  Medicaments can be updated
+  without triggering scheduling.
+end note
+
+' ----------------------------------------------------------------------------
+' DoseRecord — Per-dose lifecycle
+' ----------------------------------------------------------------------------
+
+[*] --> Pending : SchedulerWorker\ndispatchDue()
+
+state Pending {
+  [*] --> Pending
+}
+
+Pending --> Taken : ConfirmDose()\nMarkTaken(now)
+Pending --> Missed : MarkMissed()\n(scheduled time passed)
+
+state Taken {
+  [*] --> Taken : confirmedAt = now
+  note right
+    ConfirmedAt timestamp is set.
+    No further transitions.
+  end note
+}
+
+state Missed {
+  [*] --> Missed
+  note right
+    Final state.
+    Used for reporting.
+  end note
+}
+
+' ----------------------------------------------------------------------------
+' CaregiverInvitation — Linking workflow
+' ----------------------------------------------------------------------------
+
+[*] --> InvPending : NewCaregiverInvitation()\n(status=PENDING)
+
+state InvPending {
+  [*] --> InvPending
+  note left of InvPending
+    Token (UUID) sent to caregiver.
+    Invitation persists until resolved.
+  end note
+}
+
+InvPending --> InvAccepted : Accept()\nLinkUsers()\nCreate user_links row
+InvPending --> InvRejected : Reject()\nInvitation marked rejected
+
+state InvAccepted {
+  [*] --> InvAccepted
+}
+
+state InvRejected {
+  [*] --> InvRejected
+}
+
+' ----------------------------------------------------------------------------
+' Legend
+' ----------------------------------------------------------------------------
+
+legend bottom
+|= Entity =|= States =|= Transitions =|
+| Prescription | Inactive, Active | Activate, Deactivate, Delete |
+| DoseRecord | PENDING, TAKEN, MISSED | ConfirmDose, MarkMissed |
+| CaregiverInvitation | PENDING, ACCEPTED, REJECTED | Accept, Reject |
+endlegend
+
+@enduml
