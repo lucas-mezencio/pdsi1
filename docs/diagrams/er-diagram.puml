@@ -1,0 +1,171 @@
+@startuml
+' ============================================================================
+' CareConnect — Entity-Relationship Diagram
+' PostgreSQL schema (migrations 0001–0005)
+' ============================================================================
+
+skinparam entityBackgroundColor #F0F8FF
+skinparam entityBorderColor #1E90FF
+skinparam entityFontColor #00008B
+skinparam entityFontSize 11
+skinparam shadowing false
+skinparam attributeFontSize 10
+skinparam attributeIconSize 10
+skinparam noteBackgroundColor #FFFAF0
+skinparam noteBorderColor #DAA520
+skinparam stereotypeCBackgroundColor #F0FFF0
+
+' ----------------------------------------------------------------------------
+' Tables
+' ----------------------------------------------------------------------------
+
+entity "users" as users <<TABLE>>
+{
+  * id : UUID PK
+  --
+  * name : TEXT NOT NULL
+  * email : TEXT NOT NULL UNIQUE
+  * phone : TEXT NOT NULL
+  * firebase_token : TEXT NOT NULL
+  * notifications_enabled : BOOLEAN NOT NULL DEFAULT TRUE
+  * role : TEXT NOT NULL DEFAULT 'ELDERLY'
+  * firebase_id : TEXT (nullable, UNIQUE idx)
+  * created_at : TIMESTAMPTZ NOT NULL
+  * updated_at : TIMESTAMPTZ NOT NULL
+}
+
+entity "doctors" as doctors <<TABLE>>
+{
+  * id : UUID PK
+  --
+  * name : TEXT NOT NULL
+  * email : TEXT NOT NULL UNIQUE
+  * phone : TEXT NOT NULL
+  * specialty : TEXT NOT NULL
+  * license_number : TEXT NOT NULL UNIQUE
+  * firebase_id : TEXT (nullable, UNIQUE idx)
+  * created_at : TIMESTAMPTZ NOT NULL
+  * updated_at : TIMESTAMPTZ NOT NULL
+}
+
+entity "prescriptions" as prescriptions <<TABLE>>
+{
+  * id : UUID PK
+  --
+  * user_id : UUID FK → users(id) ON DELETE CASCADE
+  * medic_id : UUID FK → doctors(id) ON DELETE CASCADE
+  * active : BOOLEAN NOT NULL DEFAULT TRUE
+  * created_at : TIMESTAMPTZ NOT NULL
+  * updated_at : TIMESTAMPTZ NOT NULL
+}
+
+entity "medicaments" as medicaments <<TABLE>>
+{
+  * id : BIGSERIAL PK
+  --
+  * prescription_id : UUID FK → prescriptions(id) ON DELETE CASCADE
+  * name : TEXT NOT NULL
+  * dosage : TEXT NOT NULL
+  * frequency : TEXT NOT NULL
+  * times : TEXT[] NOT NULL
+  * doses : INTEGER NOT NULL
+}
+
+entity "dose_records" as dose_records <<TABLE>>
+{
+  * id : UUID PK
+  --
+  * prescription_id : UUID FK → prescriptions(id) ON DELETE CASCADE
+  * user_id : UUID FK → users(id) ON DELETE CASCADE
+  * medicament_name : TEXT NOT NULL
+  * dosage : TEXT NOT NULL
+  * scheduled_at : TIMESTAMPTZ NOT NULL
+  * status : TEXT NOT NULL DEFAULT 'PENDING'
+  * confirmed_at : TIMESTAMPTZ (nullable)
+  * created_at : TIMESTAMPTZ NOT NULL
+  * updated_at : TIMESTAMPTZ NOT NULL
+}
+
+entity "notification_events" as notification_events <<TABLE>>
+{
+  * id : UUID PK
+  --
+  * prescription_id : UUID FK → prescriptions(id) ON DELETE CASCADE
+  * user_id : UUID FK → users(id) ON DELETE CASCADE
+  * medicament_name : TEXT NOT NULL
+  * dosage : TEXT NOT NULL
+  * scheduled_at : TIMESTAMPTZ NOT NULL
+  * sent_at : TIMESTAMPTZ NOT NULL
+}
+
+entity "user_links" as user_links <<TABLE>>
+{
+  * caregiver_id : UUID FK → users(id) ON DELETE CASCADE
+  * elderly_id : UUID FK → users(id) ON DELETE CASCADE
+  --
+  * created_at : TIMESTAMPTZ NOT NULL DEFAULT NOW()
+}
+
+entity "caregiver_invitations" as caregiver_invitations <<TABLE>>
+{
+  * id : UUID PK
+  --
+  * caregiver_id : UUID FK → users(id) ON DELETE CASCADE
+  * elderly_id : UUID FK → users(id) ON DELETE CASCADE
+  * token : TEXT NOT NULL UNIQUE
+  * status : TEXT NOT NULL DEFAULT 'PENDING'
+  * created_at : TIMESTAMPTZ NOT NULL
+  * updated_at : TIMESTAMPTZ NOT NULL
+}
+
+' ----------------------------------------------------------------------------
+' Relationships
+' ----------------------------------------------------------------------------
+
+users -- prescriptions : "1:N\n(user is elderly)"
+doctors -- prescriptions : "1:N\n(doctor prescribes)"
+prescriptions -- medicaments : "1:N\n(prescription has medicaments)"
+prescriptions -- dose_records : "1:N\n(prescription generates doses)"
+users -- dose_records : "1:N\n(user has dose records)"
+prescriptions -- notification_events : "1:N\n(prescription triggers events)"
+users -- notification_events : "1:N\n(user receives notifications)"
+
+users -- user_links : "N:1\n(caregiver → elderly)"
+user_links .. users : "elderly side"
+user_links .. users : "caregiver side"
+
+users -- caregiver_invitations : "1:N\n(invitations sent)"
+users -- caregiver_invitations : "1:N\n(invitations received)"
+
+users -- doctors : "M:N via firebase_id\n(optional Firebase Auth link)"
+doctors -- doctors : "M:N via firebase_id\n(optional Firebase Auth link)"
+
+' ----------------------------------------------------------------------------
+' Composite PK note
+' ----------------------------------------------------------------------------
+note bottom of user_links
+  Composite PK: (caregiver_id, elderly_id)
+  Represents caregiver ↔ elderly link
+end note
+
+note bottom of medicaments
+  id uses BIGSERIAL (auto-increment), not UUID
+  times stored as PostgreSQL TEXT[]
+end note
+
+note bottom of dose_records
+  status ∈ {'PENDING', 'TAKEN', 'MISSED'}
+  confirmed_at set only when status = 'TAKEN'
+end note
+
+note bottom of caregiver_invitations
+  status ∈ {'PENDING', 'ACCEPTED', 'REJECTED'}
+  token is a UUID used for invitation lookup
+end note
+
+note bottom of notification_events
+  Append-only log of all dispatched notifications.
+  Used for audit and EventStore interface.
+end note
+
+@enduml

@@ -1,0 +1,168 @@
+@startuml
+' ============================================================================
+' CareConnect — Sequence Diagram
+' Notification lifecycle: prescription creation → scheduled notification → dose confirmation
+' ============================================================================
+
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam defaultFontSize 12
+skinparam sequenceParticipantPadding 20
+skinparam noteWidth 200
+
+title "Ciclo de Vida da Notificação de Medicação"
+
+participant "Client\n(Mobile App)" as Client #lightblue
+participant "HTTP API\n(Router)" as API #lightgray
+participant "Prescription\nCommandHandler" as CmdHandler #white
+participant "Prescription\nRepository" as Repo #white
+participant "Notification\nScheduler" as Scheduler #white
+participant "Redis" as Redis #lightyellow
+participant "Scheduler\nWorker" as Worker #white
+participant "Watermill\nPublisher" as Publisher #white
+participant "Notification\nConsumer" as Consumer #white
+participant "User\nRepository" as UserRepo #white
+participant "Firebase\nSender" as FCM #white
+participant "Firebase\nCloud Messaging" as FCMCloud #lightcyan
+participant "Caregiver(s)" as Caregiver #lightblue
+participant "DoseRecord\nCommandHandler" as DoseCmd #white
+database "PostgreSQL" as DB #lightgray
+
+' ============================================================================
+' PHASE 1: Prescription Creation
+' ============================================================================
+group #f0f0f0 Criação da Prescrição
+  Client -> API : POST /api/v1/prescriptions\n(CreatePrescriptionCommand)
+  API -> CmdHandler : Create(ctx, cmd)
+
+  CmdHandler -> Repo : Exists(userID)
+  Repo -> DB : SELECT FROM users WHERE id = userID
+  DB --> Repo : user exists
+  Repo --> CmdHandler : true
+
+  CmdHandler -> Repo : Exists(medicID)
+  Repo -> DB : SELECT FROM doctors WHERE id = medicID
+  DB --> Repo : doctor exists
+  Repo --> CmdHandler : true
+
+  CmdHandler -> CmdHandler : NewPrescription(cmd.UserID, cmd.MedicID, cmd.Medicaments)
+  CmdHandler -> Repo : Save(prescription)
+  Repo -> DB : INSERT INTO prescriptions, medicaments
+  DB --> Repo : prescription created
+  Repo --> CmdHandler : prescription saved
+end
+
+' ============================================================================
+' PHASE 2: Notification Scheduling (Redis)
+' ============================================================================
+group #f0f0f0 Agendamento de Notificações
+  CmdHandler -> CmdHandler : GetAllNotificationTimes()\n→ []NotificationSchedule
+
+  loop for each NotificationSchedule
+    CmdHandler -> Scheduler : Schedule(ctx, schedule, startDate)
+    Scheduler -> Redis : HSET mednotify:notification_jobs\n{jobID → NotificationJob JSON}
+    Scheduler -> Redis : ZADD mednotify:notification_schedule\n{score: scheduledAt, member: jobID}
+    Scheduler -> Redis : SADD mednotify:prescription_jobs:{prescriptionID}\n{jobID}
+    Redis --> Scheduler : jobs stored in pipeline
+    Scheduler --> CmdHandler : scheduled
+  end
+end
+
+' ============================================================================
+' PHASE 3: Worker Polls Redis & Dispatches Due Jobs
+' ============================================================================
+group #FAFAFA Worker Polls e Dispara Jobs Vencidos
+  Worker -> Redis : ZRANGEBYSCORE mednotify:notification_schedule\n{min: now-lookback, max: now}
+  Redis --> Worker : [jobID, ...]
+
+  loop for each due jobID
+    Worker -> Redis : HGET mednotify:notification_jobs jobID
+    Redis --> Worker : NotificationJob JSON
+    Worker -> Redis : ZREM + HDEL job (cleanup pipeline)
+    Redis --> Worker : job removed
+
+    Worker -> Publisher : Publish("notifications", message)
+    Publisher -> Redis : XADD notifications stream
+    Publisher --> Worker : message published
+
+    Worker -> Repo : CreatePending(job)\n(DoseRecordStore interface)
+    Repo -> DB : INSERT INTO dose_records\n(status = PENDING)
+    DB --> Repo : dose record created
+    Repo --> Worker : pending record saved
+  end
+end
+
+' ============================================================================
+' PHASE 4: Notification Consumer — Fan-out to User + Caregivers
+' ============================================================================
+group #f0f0f0 Envio de Notificação ao Usuário Idoso
+  Consumer -> Redis : XREADGROUP notifications\n(consumer group: mednotify)
+  Redis --> Consumer : NotificationJob message
+
+  Consumer -> UserRepo : FindByID(userID)
+  UserRepo -> DB : SELECT FROM users WHERE id = userID
+  DB --> UserRepo : User{firebaseToken}
+  UserRepo --> Consumer : User
+
+  Consumer -> FCM : Send(Notification{user.firebaseToken, ...})
+  FCM -> FCMCloud : send()\nFirebase Cloud Messaging API
+  FCMCloud --> FCM : push notification sent
+  FCM --> Consumer : notification sent
+end
+
+group #FAFAFA Fan-out para Cuidadores Vinculados
+  Consumer -> UserRepo : FindCaregivers(elderlyID)
+  UserRepo -> DB : SELECT FROM user_links, users WHERE elderly_id = elderlyID AND role = CAREGIVER
+  DB --> UserRepo : []Caregiver
+  UserRepo --> Consumer : [caregiver1, caregiver2, ...]
+
+  loop for each linked caregiver
+    alt notifications enabled && firebaseToken != ""
+      Consumer -> FCM : Send(Notification{caregiver.firebaseToken, ...})
+      FCM -> FCMCloud : send()
+      FCMCloud --> FCM : push notification sent
+      FCM --> Consumer : sent
+    else
+      Consumer --> Consumer : skip (notifications disabled)
+    end
+  end
+end
+
+' ============================================================================
+' PHASE 5: Dose Confirmation
+' ============================================================================
+group #f0f0f0 Confirmação de Dose
+  Client -> API : POST /api/v1/dose-records/{id}/confirm
+  API -> DoseCmd : ConfirmDose(ctx, doseRecordID)
+
+  DoseCmd -> UserRepo : FindByID(userID)
+  UserRepo -> DB : SELECT FROM users WHERE id = userID
+  DB --> UserRepo : User
+  UserRepo --> DoseCmd : User
+
+  DoseCmd -> Repo : FindByID(doseRecordID)
+  Repo -> DB : SELECT FROM dose_records WHERE id = doseRecordID
+  DB --> Repo : DoseRecord{status: PENDING}
+  Repo --> DoseCmd : DoseRecord
+
+  DoseCmd -> Repo : Save(DoseRecord{status: TAKEN, confirmedAt: now})
+  Repo -> DB : UPDATE dose_records SET status = 'TAKEN', confirmed_at = now WHERE id = doseRecordID
+  DB --> Repo : dose record updated
+  Repo --> DoseCmd : dose confirmed
+  DoseCmd --> API : DoseRecord confirmed
+  API --> Client : 200 OK
+end
+
+' ----------------------------------------------------------------------------
+' Legend
+' ----------------------------------------------------------------------------
+legend right
+|= Phase =||= Description =|
+| 1 | REST API receives prescription creation |
+| 2 | Notifications scheduled to Redis sorted set |
+| 3 | Worker polls Redis, dispatches due jobs to Watermill |
+| 4 | Consumer sends push via Firebase (user + caregivers) |
+| 5 | User confirms dose via REST API |
+endlegend
+
+@enduml
