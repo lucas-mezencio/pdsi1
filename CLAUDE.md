@@ -328,3 +328,9 @@ type PrescriptionRepository interface {
 - [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
 - [Watermill Documentation](https://watermill.io/)
 - [Standard Go Project Layout](https://github.com/golang-standards/project-layout)
+
+## Working rules: PR-driven
+1. Commit suas mudanças com mensagens decentes.
+2. Dê push no branch: `git push -u origin HEAD`.
+3. Abra o PR: `gh pr create --fill --base main`.
+4. Só mova a issue para 'in_review' quando o PR estiver de pé.
