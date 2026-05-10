@@ -1,0 +1,34 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: pdsi1-postgres
+    environment:
+      POSTGRES_DB: mednotify
+      POSTGRES_USER: mednotify
+      POSTGRES_PASSWORD: mednotify
+    ports:
+      - "5432:5432"
+    volumes:
+      - pdsi1_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mednotify -d mednotify"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    container_name: pdsi1-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - pdsi1_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pdsi1_postgres:
+  pdsi1_redis:
