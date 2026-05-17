@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/messaging"
@@ -19,7 +20,12 @@ func NewFirebaseSender(ctx context.Context, credentialsFile string) (*FirebaseSe
 		return nil, errors.New("firebase credentials file is required")
 	}
 
-	app, err := firebase.NewApp(ctx, nil, option.WithCredentialsFile(credentialsFile))
+	credentialsJSON, err := os.ReadFile(credentialsFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read firebase credentials file: %w", err)
+	}
+
+	app, err := firebase.NewApp(ctx, nil, option.WithAuthCredentialsJSON(option.ServiceAccount, credentialsJSON))
 	if err != nil {
 		return nil, fmt.Errorf("firebase init failed: %w", err)
 	}

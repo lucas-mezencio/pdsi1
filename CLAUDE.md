@@ -329,6 +329,25 @@ type PrescriptionRepository interface {
 - [Watermill Documentation](https://watermill.io/)
 - [Standard Go Project Layout](https://github.com/golang-standards/project-layout)
 
+## ⚠️ Firebase Credential Handling — Pending Review
+
+**Status:** Workaround applied. Requires analysis of actual `firebase.google.com/go` SDK behavior.
+
+The `google.golang.org/api/option` package deprecated `WithCredentialsFile` and `WithCredentialsJSON` (SA1019). Current workaround uses `option.WithAuthCredentialsJSON(option.ServiceAccount, credentialsJSON)` which validates credential type.
+
+**Files affected:**
+- `internal/infrastructure/firebaseauth/service.go:40`
+- `internal/infrastructure/notification/firebase_sender.go:28`
+
+**User should investigate:**
+1. Application Default Credentials (ADC) — `GOOGLE_APPLICATION_CREDENTIALS` env var
+2. Check if newer non-deprecated `option` functions exist
+3. Firebase-specific credential loading patterns
+
+See `README.md` for full details.
+
+---
+
 ## Working rules: PR-driven
 1. Commit suas mudanças com mensagens decentes.
 2. Dê push no branch: `git push -u origin HEAD`.

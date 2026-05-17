@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -31,7 +32,12 @@ func NewService(ctx context.Context, credentialsFile, apiKey string) (*Service, 
 		return nil, application.ErrAuthNotConfigured
 	}
 
-	app, err := firebase.NewApp(ctx, nil, option.WithCredentialsFile(credentialsFile))
+	credentialsJSON, err := os.ReadFile(credentialsFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read firebase credentials file: %w", err)
+	}
+
+	app, err := firebase.NewApp(ctx, nil, option.WithAuthCredentialsJSON(option.ServiceAccount, credentialsJSON))
 	if err != nil {
 		return nil, fmt.Errorf("firebase init failed: %w", err)
 	}

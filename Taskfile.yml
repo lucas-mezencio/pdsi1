@@ -25,7 +25,7 @@ tasks:
   mutation:
     desc: Run mutation tests
     cmds:
-      - gremlins unleash ./...
+      - gremlins unleash
 
   vulncheck:
     desc: Run vulnerability check in project and dependencies
