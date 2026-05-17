@@ -1,0 +1,5 @@
+services:
+  careconnect:
+    build:
+      context: .
+      dockerfile: Dockerfile

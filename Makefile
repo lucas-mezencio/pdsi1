@@ -7,13 +7,13 @@ install/go-task:
 	go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
 
 compose/build:
-	docker compose --profile dev up -d --build
+	docker compose -f compose.yml -f compose.dev.yml up -d --build
 
 compose/up:
-	docker compose --profile dev up -d
+	docker compose -f compose.yml -f compose.dev.yml up -d
 
 compose/down:
-	docker compose --profile dev down
+	docker compose down
 
 compose/logs:
 	docker compose logs -f
