@@ -1,4 +1,9 @@
 //go:build integration
+//
+// NOTE: This test spawns the API and fakefirebasesub as subprocesses via `go run`
+// and expects docker compose services (postgres, redis) to be available.
+// It should be migrated to testcontainers in the future to run in isolation
+// without depending on external docker compose services.
 
 package tests
 

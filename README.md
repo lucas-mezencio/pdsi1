@@ -10,7 +10,7 @@ Prerequisites:
 Start infrastructure:
 
 ```bash
-docker compose up -d postgres redis
+make compose/infra
 ```
 
 Run the API:
@@ -20,6 +20,49 @@ go run ./cmd/api
 ```
 
 The API listens on `http://localhost:8080/api/v1` by default. You can change it with `HTTP_ADDR`.
+
+## Development Tools
+
+This project uses [task](github.com/go-task/task) for task automation.
+
+### Install Tools
+
+```bash
+make install/tools
+```
+
+This installs:
+- [golangci-lint](https://golangci-lint.run/) — multi-purpose linter
+- [gremlins](https://github.com/go-gremlins/gremlins) — mutation testing
+- [govulncheck](https://golang.org/x/vuln/cmd/govulncheck) — vulnerability scanning
+
+### Available Tasks
+
+```bash
+task -l
+```
+
+| Task       | Description                          |
+|------------|--------------------------------------|
+| `task`     | Runs `task validate` (default)       |
+| `task setup` | Install quality gate tools          |
+| `task lint` | Run golangci-lint                   |
+| `task test` | Run all tests with race detection  |
+| `task mutation` | Run mutation tests            |
+| `task vulncheck` | Run vulnerability scan       |
+| `task validate` | Run all validations (lint + test + mutation + vulncheck) |
+
+### Docker Compose
+
+All Docker Compose operations go through the Makefile:
+
+```bash
+make compose/build   # Build and start dev profile
+make compose/up      # Start dev profile
+make compose/down    # Stop containers
+make compose/logs    # Follow logs
+make compose/infra   # Start postgres and redis only
+```
 
 ## Notifications
 
@@ -98,7 +141,6 @@ API_BASE_URL=http://localhost:8080/api/v1 go run ./cmd/fakefirebasesub
 The integration test that wires API + Postgres + Redis lives under `tests/` and only runs with a build tag:
 
 ```bash
-docker compose up -d postgres redis
 go test -tags=integration ./tests -run TestFakeFirebaseIntegration
 ```
 
@@ -133,3 +175,34 @@ curl -s -X POST http://localhost:8080/api/v1/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"email":"maria@example.com","password":"Password123!"}'
 ```
+
+## ⚠️ Firebase Credential Handling — Pending Review
+
+**Status:** Workaround applied. Requires analysis of actual `firebase.google.com/go` SDK behavior.
+
+### What happened
+
+The `google.golang.org/api/option` package deprecated:
+- `option.WithCredentialsFile()` — SA1019 warning
+- `option.WithCredentialsJSON()` — SA1019 warning
+
+Reason cited: "potential security risk" (no credential type validation).
+
+### Current workaround
+
+Using `option.WithAuthCredentialsJSON(option.ServiceAccount, credentialsJSON)` which validates the JSON is a service account before loading. This was applied in:
+
+- `internal/infrastructure/firebaseauth/service.go:40`
+- `internal/infrastructure/notification/firebase_sender.go:28`
+
+### What needs to be reviewed
+
+The user should analyze the current `firebase.google.com/go/v4` SDK to determine the **canonical, non-deprecated way** to provide credentials. Options to investigate:
+
+1. **Application Default Credentials (ADC)** — Let the SDK auto-discover credentials via `GOOGLE_APPLICATION_CREDENTIALS` env var or metadata server (best for GCP deployments)
+2. **Check for newer non-deprecated `option` functions** — The SDK may have introduced alternative APIs since this code was written
+3. **Firebase-specific credential loading** — There may be a `firebase.NewApp` configuration that doesn't rely on the generic `google.golang.org/api/option` package
+
+### Impact if not fixed
+
+The current workaround suppresses the linter warning but may not be the intended long-term approach. The Firebase SDK's migration path may involve ADC-only initialization or Firebase-specific credential helpers.

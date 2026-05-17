@@ -1,8 +1,8 @@
-name: MedNotify CI
+name: Care connect CI (pr gate)
 
 on:
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 jobs:
   test:
     name: Run Tests and Coverage
@@ -14,13 +14,13 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.3'
+          go-version: "1.26.3"
       - name: Install dependencies
         run: go mod tidy
 
       - name: Run Unit Tests
         run: go test -v ./...
-      
+
       - name: Check Test Coverage
         run: |
           go test -coverprofile=coverage.out ./...
