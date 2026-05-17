@@ -47,9 +47,6 @@ services:
 
   careconnect:
     image: ghcr.io/lucas-mezencio/pdsi1/careconnect:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
     env_file:
       - path: .env
         required: false
