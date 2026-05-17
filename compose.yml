@@ -29,7 +29,7 @@ services:
       timeout: 5s
       retries: 5
 
-  mednotify:
+  careconnect:
     build:
       context: .
       dockerfile: Dockerfile
@@ -37,6 +37,7 @@ services:
     ports:
       - "8080:8080"
     environment:
+      # TODO: use the env vars for dokploy
       DATABASE_URL: postgres://mednotify:mednotify@postgres:5432/mednotify?sslmode=disable
       REDIS_ADDR: redis:6379
       HTTP_ADDR: :8080
@@ -57,3 +58,4 @@ services:
 volumes:
   pdsi1_postgres:
   pdsi1_redis:
+
