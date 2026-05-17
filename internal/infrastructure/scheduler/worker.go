@@ -251,12 +251,3 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 		}
 	}
 }
-
-func (w *SchedulerWorker) deleteJob(ctx context.Context, jobID string) {
-	pipeline := w.client.TxPipeline()
-	pipeline.ZRem(ctx, w.scheduleKey(), jobID)
-	pipeline.HDel(ctx, w.jobsKey(), jobID)
-	if _, err := pipeline.Exec(ctx); err != nil {
-		log.Printf("notification job delete failed: %v", err)
-	}
-}

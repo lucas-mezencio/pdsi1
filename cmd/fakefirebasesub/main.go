@@ -159,7 +159,7 @@ func main() {
 		log.Printf("redis connect failed: %v", err)
 		return
 	}
-	defer redisClient.Close()
+	defer func() { _ = redisClient.Close() }()
 
 	logger := watermill.NopLogger{}
 	subscriber, err := redisstream.NewSubscriber(redisstream.SubscriberConfig{
@@ -173,7 +173,7 @@ func main() {
 		log.Printf("subscriber init failed: %v", err)
 		return
 	}
-	defer subscriber.Close()
+	defer func() { _ = subscriber.Close() }()
 
 	messages, err := subscriber.Subscribe(ctx, scheduler.NotificationTopic)
 	if err != nil {
