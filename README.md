@@ -1,4 +1,4 @@
-# MedNotify API
+# CareConnect API
 
 ## Quick Start
 
