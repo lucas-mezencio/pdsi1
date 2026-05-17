@@ -58,8 +58,8 @@ services:
       FIREBASE_WEB_API_KEY: ""
     labels:
       - traefik.enable=true
-      - traefik.http.routers.careconnect.rule=Host(`${TRAEFIK_HOST}`)
-      - traefik.http.routers.careconnect.entrypoints=web
+      - traefik.http.routers.careconnect.rule=Host(`api.careconnect.localhost`)
+      - traefik.http.routers.careconnect.entrypoints=http
       - traefik.http.services.careconnect.loadbalancer.server.port=8080
     depends_on:
       postgres:
