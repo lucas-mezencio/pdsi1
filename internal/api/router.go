@@ -17,6 +17,9 @@ func NewRouter(server gen.ServerInterface, ext *ExtendedServer) http.Handler {
 	// Register routes from the generated OpenAPI spec.
 	gen.HandlerFromMuxWithBaseURL(server, router, "/api/v1")
 
+	// Serve Swagger UI at /api/v1/docs
+	router.Mount("/api/v1/docs", DocsHandler())
+
 	// Register additional routes not covered by the generated spec.
 	router.Route("/api/v1", func(r chi.Router) {
 		// Auth

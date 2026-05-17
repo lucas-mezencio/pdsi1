@@ -16,7 +16,9 @@ bin/
 tests/
 
 # Documentation
-docs/
+docs/reference
+docs/diagrams
+docs/pdsi2
 *.md
 
 # Docker files
