@@ -6,13 +6,13 @@ install/go-task:
 	go install github.com/go-task/task/v3/cmd/task@latest
 
 compose/build:
-	docker compose up -d --build careconnect
+	docker compose --profile dev up -d --build
 
 compose/up:
-	docker compose up -d
+	docker compose --profile dev up -d
 
 compose/down:
-	docker compose down
+	docker compose --profile dev down
 
 compose/logs:
 	docker compose logs -f
