@@ -3,9 +3,7 @@ package scheduler
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"sort"
-	"sync"
 	"testing"
 	"time"
 
@@ -14,47 +12,21 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
-	"github.com.br/lucas-mezencio/pdsi1/internal/config"
+	"github.com.br/lucas-mezencio/pdsi1/tests/testcontainers"
 	"github.com.br/lucas-mezencio/pdsi1/internal/domain/prescription"
 )
-
-var redisOnce sync.Once
 
 func openTestRedis(t *testing.T) redis.UniversalClient {
 	t.Helper()
 
-	appConfig, err := config.Load()
-	if err != nil {
-		t.Fatalf("failed to load config: %v", err)
+	ctx := context.Background()
+	client, _, cleanup := testcontainers.StartRedisContainer(ctx)
+	if client == nil {
+		t.Skip("docker not available")
 	}
 
-	addr := os.Getenv("REDIS_ADDR")
-	if addr == "" {
-		addr = appConfig.RedisAddr
-	}
-	if addr == "" {
-		t.Skip("REDIS_ADDR is not set")
-	}
-
-	client := redis.NewClient(&redis.Options{Addr: addr})
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	t.Cleanup(cancel)
-
-	if err := client.Ping(ctx).Err(); err != nil {
-		t.Skipf("redis unavailable: %v", err)
-	}
-
-	redisOnce.Do(func() {
-		if err := client.FlushDB(ctx).Err(); err != nil {
-			t.Fatalf("redis flush failed: %v", err)
-		}
-	})
-
-	t.Cleanup(func() {
-		_ = client.FlushDB(context.Background()).Err()
-		_ = client.Close()
-	})
-
+	_ = client.FlushDB(ctx)
+	t.Cleanup(cleanup)
 	return client
 }
 

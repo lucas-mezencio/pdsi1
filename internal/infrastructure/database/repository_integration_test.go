@@ -3,55 +3,29 @@ package database
 import (
 	"context"
 	"database/sql"
-	"os"
-	"sync"
 	"testing"
-	"time"
 
-	"github.com.br/lucas-mezencio/pdsi1/internal/config"
 	"github.com.br/lucas-mezencio/pdsi1/internal/domain/doctor"
 	"github.com.br/lucas-mezencio/pdsi1/internal/domain/prescription"
 	"github.com.br/lucas-mezencio/pdsi1/internal/domain/user"
+	"github.com.br/lucas-mezencio/pdsi1/tests/testcontainers"
 )
-
-var migrateOnce sync.Once
 
 func openTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
-	appConfig, err := config.Load()
-	if err != nil {
-		t.Fatalf("failed to load config: %v", err)
+	ctx := context.Background()
+	db, _, cleanup := testcontainers.StartPostgresContainer(ctx)
+	if db == nil {
+		t.Skip("docker not available")
 	}
 
-	dsn := os.Getenv("TEST_DATABASE_URL")
-	if dsn == "" {
-		dsn = appConfig.DatabaseURL
-	}
-	if dsn == "" {
-		t.Skip("TEST_DATABASE_URL or DATABASE_URL is not set")
+	if err := Migrate(ctx, db); err != nil {
+		cleanup()
+		t.Fatalf("failed to run migrations: %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	t.Cleanup(cancel)
-
-	db, err := NewPostgresDB(ctx, dsn)
-	if err != nil {
-		t.Fatalf("failed to connect db: %v", err)
-	}
-
-	migrateOnce.Do(func() {
-		if err := Migrate(ctx, db); err != nil {
-			t.Fatalf("failed to run migrations: %v", err)
-		}
-	})
-
-	cleanupDB(t, db)
-
-	t.Cleanup(func() {
-		_ = db.Close()
-	})
-
+	t.Cleanup(cleanup)
 	return db
 }
 
@@ -202,7 +176,7 @@ func TestPrescriptionRepository_CRUD(t *testing.T) {
 	ctx := context.Background()
 	usr, err := user.NewUser("Alice", "alice@example.com", "+100000000", "token", user.RoleElderly)
 	if err != nil {
-		t.Fatalf("failed to create user: %v", err)
+		t.Fatalf("failed to save user: %v", err)
 	}
 	if err := userRepo.Save(ctx, usr); err != nil {
 		t.Fatalf("failed to save user: %v", err)

@@ -1,0 +1,41 @@
+version: "3"
+
+tasks:
+  default:
+    cmds:
+      - validate
+
+  setup:
+    desc: Install quality gate tools
+    cmds:
+      - curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.12.2
+      - go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
+      - go install golang.org/x/vuln/cmd/govulncheck@latest
+
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - golangci-lint run ./...
+
+  test:
+    desc: Run all tests
+    cmds:
+      - go test -v -race -coverprofile=coverage.out ./...
+
+  mutation:
+    desc: Run mutation tests
+    cmds:
+      - gremlins unleash ./...
+
+  vulncheck:
+    desc: Run vulnerability check in project and dependencies
+    cmds:
+      - govulncheck ./...
+
+  validate:
+    desc: Run all validations
+    cmds:
+      - task: lint
+      - task: test
+      - task: mutation
+      - task: vulncheck
