@@ -162,3 +162,7 @@ Status: ✅ PASSES threshold-efficacy 80
 - [ ] Investigate and fix TIMED OUT mutations (add test timeouts or fix infinite loops)
 - [ ] Add test coverage for LIVED mutations to improve efficacy
 - [ ] Consider adding `--invert-loopctrl` if loop mutations continue to cause issues
+- [ ] Investigate Firebase SDK deprecation: `google.golang.org/api/option` deprecated `WithCredentialsFile` and `WithCredentialsJSON` (SA1019). Current workaround uses `option.WithAuthCredentialsJSON(option.ServiceAccount, credentialsJSON)`. Files affected:
+  - `internal/infrastructure/firebaseauth/service.go:40`
+  - `internal/infrastructure/notification/firebase_sender.go:28`
+  See `CLAUDE.md` for full context.

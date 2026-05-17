@@ -356,8 +356,6 @@ See `README.md` for full details.
 
 ---
 
-## Mutation Testing Memory
+## Memory
 
-Mutation testing results and TODO items are tracked in [.agents/memory/mutation-tests.md](.agents/memory/mutation-tests.md).
-
-**Important:** Always run `go clean -testcache` before each gremlins execution to avoid cache corruption causing all mutations to TIMED OUT.
+Check [.agents/memory/](.agents/memory/) folder for project memory, TODOs, and investigation notes.
