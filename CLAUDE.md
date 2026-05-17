@@ -353,3 +353,11 @@ See `README.md` for full details.
 2. Dê push no branch: `git push -u origin HEAD`.
 3. Abra o PR: `gh pr create --fill --base main`.
 4. Só mova a issue para 'in_review' quando o PR estiver de pé.
+
+---
+
+## Mutation Testing Memory
+
+Mutation testing results and TODO items are tracked in [.agents/memory/mutation-tests.md](.agents/memory/mutation-tests.md).
+
+**Important:** Always run `go clean -testcache` before each gremlins execution to avoid cache corruption causing all mutations to TIMED OUT.

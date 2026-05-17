@@ -25,7 +25,10 @@ tasks:
   mutation:
     desc: Run mutation tests
     cmds:
-      - gremlins unleash
+      - go clean -testcache
+      - gremlins unleash ./internal/application/ --exclude-files '.*_integ_test\.go' --threshold-efficacy 80 --threshold-mcover 60
+      - go clean -testcache
+      - gremlins unleash ./internal/domain/ --exclude-files '.*_integ_test\.go' --threshold-efficacy 80 --threshold-mcover 60
 
   vulncheck:
     desc: Run vulnerability check in project and dependencies
