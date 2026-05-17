@@ -29,14 +29,6 @@ func openTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
-func cleanupDB(t *testing.T, db *sql.DB) {
-	t.Helper()
-	query := `TRUNCATE medicaments, prescriptions, doctors, users RESTART IDENTITY CASCADE`
-	if _, err := db.ExecContext(context.Background(), query); err != nil {
-		t.Fatalf("failed to cleanup db: %v", err)
-	}
-}
-
 func TestUserRepository_CRUD(t *testing.T) {
 	db := openTestDB(t)
 	repo := NewUserRepository(db)
