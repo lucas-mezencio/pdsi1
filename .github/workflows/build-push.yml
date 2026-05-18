@@ -45,3 +45,10 @@ jobs:
           labels: ${{steps.meta.outputs.labels}}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          
+      - name: Trigger Dokploy Deployment
+        uses: dokploy/dokploy-action@v1
+        with:
+          url: ${{ secrets.DOKPLOY_URL }}/api/compose.deploy
+          token: ${{ secrets.DOKPLOY_TOKEN }}
+          composeId: ${{ secrets.DOKPLOY_APP_ID }}
