@@ -47,6 +47,7 @@ services:
 
   careconnect:
     image: ghcr.io/lucas-mezencio/pdsi1/careconnect:latest
+    pull_policy: always
     env_file:
       - path: .env
         required: false
@@ -77,4 +78,3 @@ services:
 volumes:
   pdsi1_postgres:
   pdsi1_redis:
-
