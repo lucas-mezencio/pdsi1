@@ -49,6 +49,6 @@ jobs:
       - name: Trigger Dokploy Deployment (REST API)
         run: |
           curl -X POST "${{ secrets.WEBHOOK_DOKPLOY_URL }}/api/compose.deploy" \
-            -H "Authorization: Bearer ${{ secrets.DOKPLOY_KEY }}" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_KEY }}" \
             -H "Content-Type: application/json" \
             -d '{"composeId": "${{ secrets.DOKPLOY_APP_ID }}"}'
