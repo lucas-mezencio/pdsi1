@@ -1,3 +1,5 @@
 .env
 coverage.out
 .agents/memory
+bin/
+api
