@@ -17,6 +17,7 @@ type Config struct {
 	FirebaseCredentialsFile string
 	FirebaseWebAPIKey       string
 	NotificationLookback    time.Duration
+	DemoPrescriptionSecret  string
 }
 
 const (
@@ -39,6 +40,7 @@ func Load() (*Config, error) {
 		FirebaseCredentialsFile: envString("FIREBASE_CREDENTIALS_FILE", ""),
 		FirebaseWebAPIKey:       envString("FIREBASE_WEB_API_KEY", ""),
 		NotificationLookback:    defaultNotificationLookback,
+		DemoPrescriptionSecret:  envString("DEMO_PRESCRIPTION_SECRET", ""),
 	}, nil
 }
 

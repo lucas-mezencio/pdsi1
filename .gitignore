@@ -2,4 +2,4 @@
 coverage.out
 .agents/memory
 bin/
-api
+/api

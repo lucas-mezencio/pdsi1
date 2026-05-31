@@ -25,6 +25,9 @@ tags:
   - name: Auth
     description: Authentication operations
 
+security:
+  - FirebaseJWT: []
+
 paths:
   # Auth endpoints
   /auth/register:
@@ -34,6 +37,7 @@ paths:
       summary: Register a new user
       description: Register a new user in the system
       operationId: register
+      security: []
       requestBody:
         required: true
         content:
@@ -59,6 +63,7 @@ paths:
       summary: Login user
       description: Authenticate a user and get access token
       operationId: login
+      security: []
       requestBody:
         required: true
         content:
@@ -90,6 +95,7 @@ paths:
       summary: Logout user
       description: Invalidate the user's access token
       operationId: logout
+      security: []
       responses:
         '200':
           description: Logout successful
@@ -401,9 +407,11 @@ paths:
         - Prescriptions
       summary: Create a new prescription
       description: |
-        Create a new prescription for a user. This will automatically schedule 
+        Create a new prescription for a user. This will automatically schedule
         notifications based on the medicament times specified.
       operationId: createPrescription
+      security:
+        - DemoSecret: []
       requestBody:
         required: true
         content:
@@ -625,6 +633,7 @@ paths:
       summary: Health check
       description: Check if the API is running
       operationId: healthCheck
+      security: []
       responses:
         '200':
           description: API is healthy
@@ -641,6 +650,20 @@ paths:
                     format: date-time
 
 components:
+  securitySchemes:
+    FirebaseJWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Firebase JWT token for authentication
+      x-issuer: Firebase
+
+    DemoSecret:
+      type: apiKey
+      name: Authorization
+      in: header
+      description: Demo secret for prescription creation
+
   parameters:
     UserId:
       name: userId

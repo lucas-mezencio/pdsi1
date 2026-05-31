@@ -173,7 +173,11 @@ func main() {
 		linkedUserQueries,
 	)
 
-	handler := httpapi.NewRouter(apiServer, extServer)
+	firebaseAuth := firebaseauth.GetAuthClient(firebaseAuthService)
+
+	demoSecret := appConfig.DemoPrescriptionSecret
+
+	handler := httpapi.NewRouter(apiServer, extServer, firebaseAuth, demoSecret)
 
 	httpServer := &http.Server{
 		Addr:              addr,
