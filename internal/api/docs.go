@@ -21,12 +21,16 @@ func DocsHandler() http.Handler {
 			return
 		}
 		w.Header().Set("Content-Type", "text/html")
-		w.Write(html)
+		if _, err := w.Write(html); err != nil {
+			return
+		}
 	})
 
 	mux.HandleFunc("GET /api/v1/docs/openapi.yaml", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/x-yaml")
-		w.Write(docs.OpenAPI)
+		if _, err := w.Write(docs.OpenAPI); err != nil {
+			return
+		}
 	})
 
 	return mux

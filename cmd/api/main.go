@@ -144,8 +144,7 @@ func main() {
 
 	userCommands := commands.NewUserCommandHandler(userRepo)
 	authCommands := commands.NewAuthCommandHandler(userRepo, authProvider)
-	doctorAuthCommands := commands.NewDoctorAuthCommandHandler(doctorRepo, authProvider)
-	userQueries := queries.NewUserQueryHandler(userRepo)
+		userQueries := queries.NewUserQueryHandler(userRepo)
 	doctorCommands := commands.NewDoctorCommandHandler(doctorRepo)
 	doctorQueries := queries.NewDoctorQueryHandler(doctorRepo)
 	prescriptionCommands := commands.NewPrescriptionCommandHandler(prescriptionRepo, userRepo, doctorRepo, schedulerAdapter)
@@ -162,12 +161,12 @@ func main() {
 		doctorQueries,
 		prescriptionCommands,
 		prescriptionQueries,
+		authCommands,
 	)
 
 	extServer := httpapi.NewExtendedServer(
 		userRepo,
 		authCommands,
-		doctorAuthCommands,
 		inviteCommands,
 		doseCommands,
 		doseQueries,

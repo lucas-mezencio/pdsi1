@@ -18,12 +18,11 @@ type AuthenticationProvider interface {
 
 // RegisterCommand holds data to create account in Firebase and local DB.
 type RegisterCommand struct {
-	Name          string
-	Email         string
-	Phone         string
-	Password      string
-	Role          string
-	FirebaseToken string
+	Name     string
+	Email    string
+	Phone    string
+	Password string
+	Role     string
 }
 
 // LoginCommand holds credentials for authentication.
@@ -76,7 +75,7 @@ func (h *AuthCommandHandler) Register(ctx context.Context, cmd RegisterCommand) 
 		strings.TrimSpace(cmd.Name),
 		email,
 		strings.TrimSpace(cmd.Phone),
-		cmd.FirebaseToken,
+		"", // firebaseToken: not needed at registration
 		user.Role(cmd.Role),
 	)
 	if err != nil {
