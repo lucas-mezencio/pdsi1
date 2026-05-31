@@ -41,6 +41,7 @@ var publicPaths = map[string]bool{
 	"/api/v1/health":             true, // health check
 	"/api/v1/docs":               true, // swagger UI
 	"/api/v1/docs/openapi.yaml":  true, // openapi spec
+	"/api/v1/auth/register":      true, // registration (public, users don't have accounts yet)
 }
 
 func isPublicPath(path string) bool {
