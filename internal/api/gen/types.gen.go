@@ -9,6 +9,13 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// AuthResponse defines model for AuthResponse.
+type AuthResponse struct {
+	// Token JWT access token
+	Token string `json:"token"`
+	User  User   `json:"user"`
+}
+
 // CreateDoctorRequest defines model for CreateDoctorRequest.
 type CreateDoctorRequest struct {
 	// Email Doctor's email address
@@ -90,6 +97,15 @@ type Error struct {
 	Error string `json:"error"`
 }
 
+// LoginRequest defines model for LoginRequest.
+type LoginRequest struct {
+	// Email User's email address
+	Email openapi_types.Email `json:"email"`
+
+	// Password User's password
+	Password string `json:"password"`
+}
+
 // Medicament defines model for Medicament.
 type Medicament struct {
 	// Dosage Dosage amount and unit
@@ -144,6 +160,21 @@ type Prescription struct {
 
 	// UserId ID of the user this prescription belongs to
 	UserId openapi_types.UUID `json:"user_id"`
+}
+
+// RegisterRequest defines model for RegisterRequest.
+type RegisterRequest struct {
+	// Email User's email address
+	Email openapi_types.Email `json:"email"`
+
+	// Name User's full name
+	Name string `json:"name"`
+
+	// Password User's password
+	Password string `json:"password"`
+
+	// Phone User's phone number
+	Phone string `json:"phone"`
 }
 
 // UpdateDoctorRequest defines model for UpdateDoctorRequest.
@@ -224,6 +255,9 @@ type InternalServerError = Error
 // NotFound defines model for NotFound.
 type NotFound = Error
 
+// ServiceUnavailable defines model for ServiceUnavailable.
+type ServiceUnavailable = Error
+
 // ListPrescriptionsParams defines parameters for ListPrescriptions.
 type ListPrescriptionsParams struct {
 	// UserId Filter by user ID
@@ -247,6 +281,12 @@ type ToggleNotificationsJSONBody struct {
 	// Enabled Whether notifications should be enabled
 	Enabled bool `json:"enabled"`
 }
+
+// LoginJSONRequestBody defines body for Login for application/json ContentType.
+type LoginJSONRequestBody = LoginRequest
+
+// RegisterJSONRequestBody defines body for Register for application/json ContentType.
+type RegisterJSONRequestBody = RegisterRequest
 
 // CreateDoctorJSONRequestBody defines body for CreateDoctor for application/json ContentType.
 type CreateDoctorJSONRequestBody = CreateDoctorRequest

@@ -141,3 +141,12 @@ func isInvalidCredentialsError(message string) bool {
 		return false
 	}
 }
+
+// GetAuthClient returns the Firebase Auth client from the service.
+// Returns nil if the service is nil or not properly initialized.
+func GetAuthClient(svc *Service) *firebaseadminauth.Client {
+	if svc == nil {
+		return nil
+	}
+	return svc.authClient
+}

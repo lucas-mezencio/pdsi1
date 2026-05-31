@@ -3,15 +3,22 @@ package httpapi
 import (
 	"net/http"
 
+	"firebase.google.com/go/v4/auth"
 	gen "github.com.br/lucas-mezencio/pdsi1/internal/api/gen"
 	"github.com/go-chi/chi/v5"
 )
 
 // NewRouter builds the chi router for the API.
-func NewRouter(server gen.ServerInterface, ext *ExtendedServer) http.Handler {
+func NewRouter(server gen.ServerInterface, ext *ExtendedServer, firebaseAuth *auth.Client, demoSecret string) http.Handler {
 	router := chi.NewRouter()
 
+	// Auth middleware: validates Firebase JWT Bearer tokens (or demo secret for POST /prescriptions)
+	if firebaseAuth != nil {
+		router.Use(AuthMiddleware(firebaseAuth, demoSecret))
+	}
+
 	// RBAC middleware: enriches context with caller identity from X-User-ID header.
+	// This is a fallback for routes that don't use Firebase JWT but still need user context.
 	router.Use(RBACMiddleware(ext.userRepo))
 
 	// Register routes from the generated OpenAPI spec.
@@ -22,12 +29,6 @@ func NewRouter(server gen.ServerInterface, ext *ExtendedServer) http.Handler {
 
 	// Register additional routes not covered by the generated spec.
 	router.Route("/api/v1", func(r chi.Router) {
-		// Auth
-		r.Post("/auth/register", ext.Register)
-		r.Post("/auth/login", ext.Login)
-		r.Post("/auth/doctors/register", ext.RegisterDoctor)
-		r.Post("/auth/doctors/login", ext.LoginDoctor)
-
 		// Invitations
 		r.Post("/invitations", ext.CreateInvitation)
 		r.Get("/invitations/{token}", ext.GetInvitationByToken)

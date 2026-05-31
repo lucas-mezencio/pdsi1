@@ -22,8 +22,94 @@ tags:
     description: Doctor management operations
   - name: Prescriptions
     description: Prescription management and notification scheduling
+  - name: Auth
+    description: Authentication operations
+
+security:
+  - FirebaseJWT: []
 
 paths:
+  # Auth endpoints
+  /auth/register:
+    post:
+      tags:
+        - Auth
+      summary: Register a new user
+      description: Register a new user in the system
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Login user
+      description: Authenticate a user and get access token
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: Logout user
+      description: Invalidate the user's access token
+      operationId: logout
+      security: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Logged out successfully"
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
   # User endpoints
   /users:
     get:
@@ -321,9 +407,11 @@ paths:
         - Prescriptions
       summary: Create a new prescription
       description: |
-        Create a new prescription for a user. This will automatically schedule 
+        Create a new prescription for a user. This will automatically schedule
         notifications based on the medicament times specified.
       operationId: createPrescription
+      security:
+        - DemoSecret: []
       requestBody:
         required: true
         content:
@@ -545,6 +633,7 @@ paths:
       summary: Health check
       description: Check if the API is running
       operationId: healthCheck
+      security: []
       responses:
         '200':
           description: API is healthy
@@ -561,6 +650,20 @@ paths:
                     format: date-time
 
 components:
+  securitySchemes:
+    FirebaseJWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Firebase JWT token for authentication
+      x-issuer: Firebase
+
+    DemoSecret:
+      type: apiKey
+      name: Authorization
+      in: header
+      description: Demo secret for prescription creation
+
   parameters:
     UserId:
       name: userId
@@ -930,6 +1033,64 @@ components:
       required:
         - error
 
+    # Auth schemas
+    RegisterRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: User's full name
+          example: "John Doe"
+        email:
+          type: string
+          format: email
+          description: User's email address
+          example: "john.doe@example.com"
+        phone:
+          type: string
+          description: User's phone number
+          example: "+1234567890"
+        password:
+          type: string
+          format: password
+          description: User's password
+          example: "securepassword123"
+      required:
+        - name
+        - email
+        - phone
+        - password
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          description: User's email address
+          example: "john.doe@example.com"
+        password:
+          type: string
+          format: password
+          description: User's password
+          example: "securepassword123"
+      required:
+        - email
+        - password
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT access token
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        user:
+          $ref: '#/components/schemas/User'
+      required:
+        - token
+        - user
+
   responses:
     BadRequest:
       description: Bad request - invalid input
@@ -960,3 +1121,13 @@ components:
           example:
             error: "Internal server error"
             details: "An unexpected error occurred"
+
+    ServiceUnavailable:
+      description: Service unavailable - server is temporarily unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Service unavailable"
+            details: "The server is temporarily unavailable. Please try again later."

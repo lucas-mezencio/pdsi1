@@ -21,6 +21,7 @@ type Server struct {
 	doctorQueries        *queries.DoctorQueryHandler
 	prescriptionCommands *commands.PrescriptionCommandHandler
 	prescriptionQueries  *queries.PrescriptionQueryHandler
+	authCommands         *commands.AuthCommandHandler
 }
 
 // NewServer constructs a Server with handlers.
@@ -31,6 +32,7 @@ func NewServer(
 	doctorQueries *queries.DoctorQueryHandler,
 	prescriptionCommands *commands.PrescriptionCommandHandler,
 	prescriptionQueries *queries.PrescriptionQueryHandler,
+	authCommands *commands.AuthCommandHandler,
 ) *Server {
 	return &Server{
 		userCommands:         userCommands,
@@ -39,6 +41,7 @@ func NewServer(
 		doctorQueries:        doctorQueries,
 		prescriptionCommands: prescriptionCommands,
 		prescriptionQueries:  prescriptionQueries,
+		authCommands:         authCommands,
 	}
 }
 
@@ -317,6 +320,49 @@ func (s *Server) HealthCheck(w http.ResponseWriter, r *http.Request) {
 		"status":    "ok",
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})
+}
+
+func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
+	var body gen.LoginRequest
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request", err.Error())
+		return
+	}
+
+	user, err := s.authCommands.Login(r.Context(), commands.LoginCommand{
+		Email:    string(body.Email),
+		Password: body.Password,
+	})
+	if err != nil {
+		writeCommandError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, user)
+}
+
+func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
+	var body gen.RegisterRequest
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request", err.Error())
+		return
+	}
+
+	user, err := s.authCommands.Register(r.Context(), commands.RegisterCommand{
+		Name:     body.Name,
+		Email:    string(body.Email),
+		Password: body.Password,
+		Phone:    body.Phone,
+	})
+	if err != nil {
+		writeCommandError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, user)
+}
+
+func (s *Server) Logout(w http.ResponseWriter, r *http.Request) {
+	// Auth token removal is handled client-side; server just acknowledges.
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func decodeJSON(r *http.Request, target any) error {
