@@ -36,6 +36,17 @@ func RBACMiddleware(userRepo user.Repository) func(http.Handler) http.Handler {
 	}
 }
 
+// publicPaths are routes that do not require authentication.
+var publicPaths = map[string]bool{
+	"/api/v1/health":             true, // health check
+	"/api/v1/docs":               true, // swagger UI
+	"/api/v1/docs/openapi.yaml":  true, // openapi spec
+}
+
+func isPublicPath(path string) bool {
+	return publicPaths[path]
+}
+
 // AuthMiddleware validates Firebase JWT Bearer tokens and sets the caller's
 // Firebase UID in the request context. Returns 401 Unauthorized if the token
 // is missing, malformed, or invalid.
@@ -43,6 +54,12 @@ func RBACMiddleware(userRepo user.Repository) func(http.Handler) http.Handler {
 func AuthMiddleware(firebaseAuth *auth.Client, demoSecret string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Public routes bypass auth
+			if isPublicPath(r.URL.Path) {
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			// POST /prescriptions uses demo secret auth instead of Firebase JWT
 			if r.URL.Path == "/api/v1/prescriptions" && r.Method == http.MethodPost {
 				authHeader := r.Header.Get("Authorization")
