@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "graphify": {
+      "command": "python3",
+      "args": ["-m", "graphify.serve", "/home/lucas/projects/CareConnect/graphify-out/graph.json"]
+    }
+  }
+}
