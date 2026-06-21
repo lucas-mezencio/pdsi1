@@ -38,10 +38,11 @@ func RBACMiddleware(userRepo user.Repository) func(http.Handler) http.Handler {
 
 // publicPaths are routes that do not require authentication.
 var publicPaths = map[string]bool{
-	"/api/v1/health":             true, // health check
+	"/api/v1/auth/login":         true, // login (public, clients need a token before they can authenticate)
+	"/api/v1/auth/register":      true, // registration (public, users don't have accounts yet)
 	"/api/v1/docs":               true, // swagger UI
 	"/api/v1/docs/openapi.yaml":  true, // openapi spec
-	"/api/v1/auth/register":      true, // registration (public, users don't have accounts yet)
+	"/api/v1/health":             true, // health check
 }
 
 func isPublicPath(path string) bool {

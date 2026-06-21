@@ -128,3 +128,56 @@ func TestAuthMiddleware_PostPrescriptions_DemoSecret(t *testing.T) {
 		}
 	})
 }
+
+// TestAuthMiddleware_PublicPaths locks in the bypass behavior for every entry
+// in the publicPaths map. Without an auth header the downstream handler must
+// be reached for each public path; non-public paths must still be rejected.
+func TestAuthMiddleware_PublicPaths(t *testing.T) {
+	demoSecret := "demo-secret"
+
+	// expectedPublicPaths is the authoritative list of routes that must bypass
+	// authentication. The middleware's publicPaths map must be a superset of
+	// this list, so missing entries cause the test to fail loudly.
+	expectedPublicPaths := []string{
+		"/api/v1/auth/login",
+		"/api/v1/auth/register",
+		"/api/v1/docs",
+		"/api/v1/docs/openapi.yaml",
+		"/api/v1/health",
+	}
+
+	for _, path := range expectedPublicPaths {
+		t.Run("public path "+path, func(t *testing.T) {
+			called := false
+			handler := AuthMiddleware(nil, demoSecret)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				called = true
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			req := httptest.NewRequest("POST", path, nil)
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			if !called {
+				t.Error("handler should have been called for public path")
+			}
+			if rr.Code != http.StatusOK {
+				t.Errorf("expected status 200, got %d", rr.Code)
+			}
+		})
+	}
+
+	t.Run("protected path without auth still rejected", func(t *testing.T) {
+		handler := AuthMiddleware(nil, demoSecret)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			t.Error("handler should not be called")
+		}))
+
+		req := httptest.NewRequest("GET", "/api/v1/users", nil)
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusUnauthorized {
+			t.Errorf("expected status 401, got %d", rr.Code)
+		}
+	})
+}

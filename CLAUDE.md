@@ -509,6 +509,22 @@ this"):
 
 ---
 
+## Knowledge Graph
+
+This project has a persistent knowledge graph at `graphify-out/graph.json`.
+
+**MCP Server:** The graph is available as an MCP server via the `graphify` tool
+in `.claude/settings.json`. Claude Code automatically has graph query tools
+available — no manual commands needed.
+
+**When planning changes:**
+- Query affected components: `graphify query "what depends on User struct?"`
+- Trace impact: `graphify path "UserRepository" "NotificationSender"`
+
+**Do NOT** grep/read files to answer dependency questions — use the graph.
+
+---
+
 ## Memory
 
 Check [.agents/memory/](.agents/memory/) folder for project memory, TODOs, and
