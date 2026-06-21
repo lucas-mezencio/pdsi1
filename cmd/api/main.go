@@ -144,7 +144,7 @@ func main() {
 
 	userCommands := commands.NewUserCommandHandler(userRepo)
 	authCommands := commands.NewAuthCommandHandler(userRepo, authProvider)
-		userQueries := queries.NewUserQueryHandler(userRepo)
+	userQueries := queries.NewUserQueryHandler(userRepo)
 	doctorCommands := commands.NewDoctorCommandHandler(doctorRepo)
 	doctorQueries := queries.NewDoctorQueryHandler(doctorRepo)
 	prescriptionCommands := commands.NewPrescriptionCommandHandler(prescriptionRepo, userRepo, doctorRepo, schedulerAdapter)
@@ -153,6 +153,7 @@ func main() {
 	doseCommands := commands.NewDoseRecordCommandHandler(doseRecordRepo, userRepo)
 	doseQueries := queries.NewDoseRecordQueryHandler(doseRecordRepo, userRepo)
 	linkedUserQueries := queries.NewLinkedUserQueryHandler(userRepo, invitationRepo)
+	lgpdQueries := queries.NewLGPDQueryHandler(userRepo, prescriptionRepo, doseRecordRepo, invitationRepo)
 
 	apiServer := httpapi.NewServer(
 		userCommands,
@@ -171,6 +172,7 @@ func main() {
 		doseCommands,
 		doseQueries,
 		linkedUserQueries,
+		lgpdQueries,
 	)
 
 	firebaseAuth := firebaseauth.GetAuthClient(firebaseAuthService)

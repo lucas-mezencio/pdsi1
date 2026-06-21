@@ -55,6 +55,7 @@ func TestAuthCommandHandler_Register(t *testing.T) {
 		Name:     "Alice",
 		Email:    "alice@example.com",
 		Phone:    "+100000000",
+		CPF:      "52998224725",
 		Password: "Password123!",
 		Role:     string(user.RoleElderly),
 	})
@@ -69,6 +70,9 @@ func TestAuthCommandHandler_Register(t *testing.T) {
 	}
 	if saved == nil || saved.FirebaseID != "firebase-uid-1" {
 		t.Fatal("expected saved user with firebase id")
+	}
+	if entity.CPF != "52998224725" {
+		t.Fatalf("expected cpf 52998224725, got %s", entity.CPF)
 	}
 }
 
@@ -85,6 +89,7 @@ func TestAuthCommandHandler_Register_EmailAlreadyInUse(t *testing.T) {
 		Name:     "Alice",
 		Email:    "alice@example.com",
 		Phone:    "+100000000",
+		CPF:      "52998224725",
 		Password: "Password123!",
 	})
 	if !errors.Is(err, application.ErrEmailAlreadyInUse) {
@@ -111,6 +116,7 @@ func TestAuthCommandHandler_Register_EmailAlreadyInUseInLocalDB(t *testing.T) {
 		Name:     "Alice",
 		Email:    "alice@example.com",
 		Phone:    "+100000000",
+		CPF:      "52998224725",
 		Password: "Password123!",
 	})
 	if !errors.Is(err, application.ErrEmailAlreadyInUse) {
@@ -118,6 +124,32 @@ func TestAuthCommandHandler_Register_EmailAlreadyInUseInLocalDB(t *testing.T) {
 	}
 	if createCalled {
 		t.Fatal("expected firebase create user not to be called")
+	}
+}
+
+func TestAuthCommandHandler_Register_InvalidCPF(t *testing.T) {
+	repo := &mockUserRepo{}
+	createCalled := false
+	authProvider := &mockAuthProvider{
+		createUserFn: func(ctx context.Context, email, password string) (string, error) {
+			createCalled = true
+			return "firebase-uid-1", nil
+		},
+	}
+	handler := NewAuthCommandHandler(repo, authProvider)
+
+	_, err := handler.Register(context.Background(), RegisterCommand{
+		Name:     "Alice",
+		Email:    "alice@example.com",
+		Phone:    "+100000000",
+		CPF:      "12345678900", // invalid checksum
+		Password: "Password123!",
+	})
+	if !errors.Is(err, application.ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput, got %v", err)
+	}
+	if createCalled {
+		t.Fatal("expected firebase create user not to be called for invalid CPF")
 	}
 }
 

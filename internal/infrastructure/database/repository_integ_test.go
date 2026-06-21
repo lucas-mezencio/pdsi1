@@ -34,7 +34,7 @@ func TestUserRepository_CRUD(t *testing.T) {
 	repo := NewUserRepository(db)
 
 	ctx := context.Background()
-	entity, err := user.NewUser("Alice", "alice@example.com", "+100000000", "token", user.RoleElderly)
+	entity, err := user.NewUser("Alice", "alice@example.com", "+100000000", "52998224725", "token", user.RoleElderly)
 	if err != nil {
 		t.Fatalf("failed to create user: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestUserRepository_CRUD(t *testing.T) {
 	}
 	assertUserEqual(t, entity, foundByFirebaseID)
 
-	entity.Update("Alice Updated", "alice.updated@example.com", "+200000000")
+	entity.Update("Alice Updated", "alice.updated@example.com", "+200000000", "39053344705")
 	if err := repo.Save(ctx, entity); err != nil {
 		t.Fatalf("failed to update user: %v", err)
 	}
@@ -166,7 +166,7 @@ func TestPrescriptionRepository_CRUD(t *testing.T) {
 	repo := NewPrescriptionRepository(db)
 
 	ctx := context.Background()
-	usr, err := user.NewUser("Alice", "alice@example.com", "+100000000", "token", user.RoleElderly)
+	usr, err := user.NewUser("Alice", "alice@example.com", "+100000000", "52998224725", "token", user.RoleElderly)
 	if err != nil {
 		t.Fatalf("failed to save user: %v", err)
 	}

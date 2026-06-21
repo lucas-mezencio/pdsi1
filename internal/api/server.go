@@ -60,11 +60,12 @@ func (s *Server) ListUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) CreateUser(w http.ResponseWriter, r *http.Request) {
-	// Custom struct to accept the optional `role` field alongside generated schema fields.
+	// Custom struct to accept the optional `role` and `cpf` fields alongside generated schema fields.
 	var body struct {
 		Name          string `json:"name"`
 		Email         string `json:"email"`
 		Phone         string `json:"phone"`
+		CPF           string `json:"cpf"`
 		FirebaseID    string `json:"firebase_id"`
 		FirebaseToken string `json:"firebase_token"`
 		Role          string `json:"role"` // "ELDERLY" | "CAREGIVER" (optional, defaults to "ELDERLY")
@@ -78,6 +79,7 @@ func (s *Server) CreateUser(w http.ResponseWriter, r *http.Request) {
 		Name:          body.Name,
 		Email:         body.Email,
 		Phone:         body.Phone,
+		CPF:           body.CPF,
 		FirebaseID:    body.FirebaseID,
 		FirebaseToken: body.FirebaseToken,
 		Role:          body.Role,
@@ -99,8 +101,15 @@ func (s *Server) GetUserById(w http.ResponseWriter, r *http.Request, userId gen.
 }
 
 func (s *Server) UpdateUser(w http.ResponseWriter, r *http.Request, userId gen.UserId) {
-	var body gen.UpdateUserRequest
-	if err := decodeJSON(r, &body); err != nil {
+	// Custom struct: gen.UpdateUserRequest does not include CPF, so we decode into
+	// an extended body and only update CPF when it is provided.
+	var body struct {
+		Name  string `json:"name"`
+		Email string `json:"email"`
+		Phone string `json:"phone"`
+		CPF   string `json:"cpf"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request", err.Error())
 		return
 	}
@@ -108,8 +117,9 @@ func (s *Server) UpdateUser(w http.ResponseWriter, r *http.Request, userId gen.U
 	updated, err := s.userCommands.Update(r.Context(), commands.UpdateUserCommand{
 		ID:    userId.String(),
 		Name:  body.Name,
-		Email: string(body.Email),
+		Email: body.Email,
 		Phone: body.Phone,
+		CPF:   body.CPF,
 	})
 	if err != nil {
 		writeCommandError(w, err)
@@ -341,17 +351,28 @@ func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
-	var body gen.RegisterRequest
-	if err := decodeJSON(r, &body); err != nil {
+	// Custom struct: gen.RegisterRequest does not include CPF, so we decode into
+	// an extended body. CPF is optional and validated when present.
+	var body struct {
+		Name     string `json:"name"`
+		Email    string `json:"email"`
+		Phone    string `json:"phone"`
+		CPF      string `json:"cpf"`
+		Password string `json:"password"`
+		Role     string `json:"role"` // optional, defaults to "ELDERLY"
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request", err.Error())
 		return
 	}
 
 	user, err := s.authCommands.Register(r.Context(), commands.RegisterCommand{
 		Name:     body.Name,
-		Email:    string(body.Email),
+		Email:    body.Email,
 		Password: body.Password,
 		Phone:    body.Phone,
+		CPF:      body.CPF,
+		Role:     body.Role,
 	})
 	if err != nil {
 		writeCommandError(w, err)

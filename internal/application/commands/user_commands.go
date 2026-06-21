@@ -13,6 +13,7 @@ type CreateUserCommand struct {
 	Name          string
 	Email         string
 	Phone         string
+	CPF           string
 	FirebaseID    string
 	FirebaseToken string
 	Role          string // "ELDERLY" or "CAREGIVER" (defaults to "ELDERLY")
@@ -24,6 +25,7 @@ type UpdateUserCommand struct {
 	Name  string
 	Email string
 	Phone string
+	CPF   string
 }
 
 // UpdateUserFirebaseTokenCommand updates a user's firebase token.
@@ -56,8 +58,11 @@ func NewUserCommandHandler(repo user.Repository) *UserCommandHandler {
 // Create creates a new user.
 func (h *UserCommandHandler) Create(ctx context.Context, cmd CreateUserCommand) (*user.User, error) {
 	role := user.Role(cmd.Role)
-	newUser, err := user.NewUser(cmd.Name, cmd.Email, cmd.Phone, cmd.FirebaseToken, role)
+	newUser, err := user.NewUser(cmd.Name, cmd.Email, cmd.Phone, cmd.CPF, cmd.FirebaseToken, role)
 	if err != nil {
+		if errors.Is(err, user.ErrInvalidCPF) {
+			return nil, application.ErrInvalidInput
+		}
 		return nil, err
 	}
 	if cmd.FirebaseID != "" {
@@ -85,7 +90,10 @@ func (h *UserCommandHandler) Update(ctx context.Context, cmd UpdateUserCommand) 
 		return nil, err
 	}
 
-	if err := entity.Update(cmd.Name, cmd.Email, cmd.Phone); err != nil {
+	if err := entity.Update(cmd.Name, cmd.Email, cmd.Phone, cmd.CPF); err != nil {
+		if errors.Is(err, user.ErrInvalidCPF) {
+			return nil, application.ErrInvalidInput
+		}
 		return nil, err
 	}
 

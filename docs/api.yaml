@@ -714,6 +714,12 @@ components:
           type: string
           description: User's phone number
           example: "+1234567890"
+        cpf:
+          type: string
+          description: |
+            Brazilian CPF (Cadastro de Pessoa Física), digits-only.
+            May be empty if the user was registered without one.
+          example: "52998224725"
         firebase_token:
           type: string
           description: Firebase Cloud Messaging token
@@ -1050,11 +1056,25 @@ components:
           type: string
           description: User's phone number
           example: "+1234567890"
+        cpf:
+          type: string
+          description: |
+            Brazilian CPF (Cadastro de Pessoa Física) — 11 digits.
+            Optional, but when present is validated using the official
+            modulo-11 checksum and normalized to digits-only.
+            Accepts formatted input such as "529.982.247-25".
+          example: "529.982.247-25"
         password:
           type: string
           format: password
           description: User's password
           example: "securepassword123"
+        role:
+          type: string
+          enum: [ELDERLY, CAREGIVER]
+          description: |
+            User role. Optional, defaults to "ELDERLY" if omitted or invalid.
+          example: "ELDERLY"
       required:
         - name
         - email

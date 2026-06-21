@@ -45,6 +45,9 @@ func NewRouter(server gen.ServerInterface, ext *ExtendedServer, firebaseAuth *au
 		r.Get("/users/{userId}/dose-records", ext.ListDoseRecords)
 		r.Post("/dose-records/{doseRecordId}/confirm", ext.ConfirmDose)
 		r.Post("/dose-records/{doseRecordId}/miss", ext.MarkDoseMissed)
+
+		// LGPD data-export (Brazilian LGPD / GDPR right of access)
+		r.Get("/users/me/data-export", ext.LGPDDataExport)
 	})
 
 	return router
