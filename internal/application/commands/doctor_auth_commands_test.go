@@ -72,8 +72,8 @@ func TestDoctorAuthCommandHandler_Register_LicenseAlreadyInUse(t *testing.T) {
 
 func TestDoctorAuthCommandHandler_LoginByFirebaseID(t *testing.T) {
 	authProvider := &mockAuthProvider{
-		signInFn: func(ctx context.Context, email, password string) (string, error) {
-			return "doctor-firebase-uid-1", nil
+		signInFn: func(ctx context.Context, email, password string) (string, string, error) {
+			return "doctor-firebase-uid-1", "id-token-jwt", nil
 		},
 	}
 	repo := &mockDoctorRepo{
@@ -83,7 +83,7 @@ func TestDoctorAuthCommandHandler_LoginByFirebaseID(t *testing.T) {
 	}
 	handler := NewDoctorAuthCommandHandler(repo, authProvider)
 
-	entity, err := handler.Login(context.Background(), LoginDoctorCommand{
+	entity, token, err := handler.Login(context.Background(), LoginDoctorCommand{
 		Email:    "house@example.com",
 		Password: "Password123!",
 	})
@@ -93,12 +93,15 @@ func TestDoctorAuthCommandHandler_LoginByFirebaseID(t *testing.T) {
 	if entity.ID != "doc-1" {
 		t.Fatalf("expected doc-1, got %s", entity.ID)
 	}
+	if token != "id-token-jwt" {
+		t.Fatalf("expected id token id-token-jwt, got %s", token)
+	}
 }
 
 func TestDoctorAuthCommandHandler_Login_BackfillsFirebaseID(t *testing.T) {
 	authProvider := &mockAuthProvider{
-		signInFn: func(ctx context.Context, email, password string) (string, error) {
-			return "doctor-firebase-uid-1", nil
+		signInFn: func(ctx context.Context, email, password string) (string, string, error) {
+			return "doctor-firebase-uid-1", "id-token-jwt", nil
 		},
 	}
 
@@ -118,7 +121,7 @@ func TestDoctorAuthCommandHandler_Login_BackfillsFirebaseID(t *testing.T) {
 	}
 	handler := NewDoctorAuthCommandHandler(repo, authProvider)
 
-	entity, err := handler.Login(context.Background(), LoginDoctorCommand{
+	entity, token, err := handler.Login(context.Background(), LoginDoctorCommand{
 		Email:    "legacy.doc@example.com",
 		Password: "Password123!",
 	})
@@ -130,5 +133,8 @@ func TestDoctorAuthCommandHandler_Login_BackfillsFirebaseID(t *testing.T) {
 	}
 	if saved == nil || saved.FirebaseID != "doctor-firebase-uid-1" {
 		t.Fatal("expected saved doctor with backfilled firebase id")
+	}
+	if token == "" {
+		t.Fatal("expected non-empty id token after doctor login")
 	}
 }

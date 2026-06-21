@@ -97,43 +97,48 @@ func (h *DoctorAuthCommandHandler) Register(ctx context.Context, cmd RegisterDoc
 	return entity, nil
 }
 
-// Login validates doctor credentials on Firebase and returns linked local doctor.
-func (h *DoctorAuthCommandHandler) Login(ctx context.Context, cmd LoginDoctorCommand) (*doctor.Doctor, error) {
+// Login validates doctor credentials on Firebase and returns the linked local
+// doctor together with the Firebase ID token (JWT) that the API surfaces as
+// the auth/bearer token.
+func (h *DoctorAuthCommandHandler) Login(ctx context.Context, cmd LoginDoctorCommand) (*doctor.Doctor, string, error) {
 	if h.authProvider == nil {
-		return nil, application.ErrAuthNotConfigured
+		return nil, "", application.ErrAuthNotConfigured
 	}
 	email := strings.TrimSpace(cmd.Email)
 	password := strings.TrimSpace(cmd.Password)
 	if email == "" || password == "" {
-		return nil, application.ErrInvalidInput
+		return nil, "", application.ErrInvalidInput
 	}
 
-	firebaseID, err := h.authProvider.SignIn(ctx, email, password)
+	firebaseID, idToken, err := h.authProvider.SignIn(ctx, email, password)
 	if err != nil {
-		return nil, err
+		return nil, "", err
+	}
+	if strings.TrimSpace(idToken) == "" {
+		return nil, "", application.ErrAuthenticationFailed
 	}
 
 	entity, err := h.repo.FindByFirebaseID(ctx, firebaseID)
 	if err == nil {
-		return entity, nil
+		return entity, idToken, nil
 	}
 	if !errors.Is(err, doctor.ErrDoctorNotFound) {
-		return nil, err
+		return nil, "", err
 	}
 
 	// Backfill legacy doctors created before firebase_id existed.
 	entity, err = h.repo.FindByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, doctor.ErrDoctorNotFound) {
-			return nil, application.ErrDoctorNotFound
+			return nil, "", application.ErrDoctorNotFound
 		}
-		return nil, err
+		return nil, "", err
 	}
 
 	entity.LinkFirebaseAccount(firebaseID)
 	if err := h.repo.Save(ctx, entity); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return entity, nil
+	return entity, idToken, nil
 }

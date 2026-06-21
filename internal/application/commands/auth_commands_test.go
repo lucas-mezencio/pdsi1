@@ -12,7 +12,7 @@ import (
 type mockAuthProvider struct {
 	createUserFn func(ctx context.Context, email, password string) (string, error)
 	deleteUserFn func(ctx context.Context, firebaseID string) error
-	signInFn     func(ctx context.Context, email, password string) (string, error)
+	signInFn     func(ctx context.Context, email, password string) (string, string, error)
 }
 
 func (m *mockAuthProvider) CreateUser(ctx context.Context, email, password string) (string, error) {
@@ -29,11 +29,11 @@ func (m *mockAuthProvider) DeleteUser(ctx context.Context, firebaseID string) er
 	return nil
 }
 
-func (m *mockAuthProvider) SignIn(ctx context.Context, email, password string) (string, error) {
+func (m *mockAuthProvider) SignIn(ctx context.Context, email, password string) (string, string, error) {
 	if m.signInFn != nil {
 		return m.signInFn(ctx, email, password)
 	}
-	return "", nil
+	return "", "", nil
 }
 
 func TestAuthCommandHandler_Register(t *testing.T) {
@@ -155,8 +155,8 @@ func TestAuthCommandHandler_Register_InvalidCPF(t *testing.T) {
 
 func TestAuthCommandHandler_LoginByFirebaseID(t *testing.T) {
 	authProvider := &mockAuthProvider{
-		signInFn: func(ctx context.Context, email, password string) (string, error) {
-			return "firebase-uid-1", nil
+		signInFn: func(ctx context.Context, email, password string) (string, string, error) {
+			return "firebase-uid-1", "id-token-jwt", nil
 		},
 	}
 	repo := &mockUserRepo{
@@ -166,7 +166,7 @@ func TestAuthCommandHandler_LoginByFirebaseID(t *testing.T) {
 	}
 	handler := NewAuthCommandHandler(repo, authProvider)
 
-	entity, err := handler.Login(context.Background(), LoginCommand{
+	entity, token, err := handler.Login(context.Background(), LoginCommand{
 		Email:    "alice@example.com",
 		Password: "Password123!",
 	})
@@ -176,12 +176,15 @@ func TestAuthCommandHandler_LoginByFirebaseID(t *testing.T) {
 	if entity.ID != "user-1" {
 		t.Fatalf("expected user-1, got %s", entity.ID)
 	}
+	if token != "id-token-jwt" {
+		t.Fatalf("expected id token id-token-jwt, got %s", token)
+	}
 }
 
 func TestAuthCommandHandler_Login_BackfillsFirebaseID(t *testing.T) {
 	authProvider := &mockAuthProvider{
-		signInFn: func(ctx context.Context, email, password string) (string, error) {
-			return "firebase-uid-1", nil
+		signInFn: func(ctx context.Context, email, password string) (string, string, error) {
+			return "firebase-uid-1", "id-token-jwt", nil
 		},
 	}
 
@@ -201,7 +204,7 @@ func TestAuthCommandHandler_Login_BackfillsFirebaseID(t *testing.T) {
 	}
 	handler := NewAuthCommandHandler(repo, authProvider)
 
-	entity, err := handler.Login(context.Background(), LoginCommand{
+	entity, token, err := handler.Login(context.Background(), LoginCommand{
 		Email:    "legacy@example.com",
 		Password: "Password123!",
 	})
@@ -213,5 +216,25 @@ func TestAuthCommandHandler_Login_BackfillsFirebaseID(t *testing.T) {
 	}
 	if saved == nil || saved.FirebaseID != "firebase-uid-1" {
 		t.Fatal("expected saved user with backfilled firebase id")
+	}
+	if token == "" {
+		t.Fatal("expected non-empty id token after login")
+	}
+}
+
+func TestAuthCommandHandler_Login_PropagatesSignInError(t *testing.T) {
+	authProvider := &mockAuthProvider{
+		signInFn: func(ctx context.Context, email, password string) (string, string, error) {
+			return "", "", application.ErrAuthenticationFailed
+		},
+	}
+	handler := NewAuthCommandHandler(&mockUserRepo{}, authProvider)
+
+	_, _, err := handler.Login(context.Background(), LoginCommand{
+		Email:    "alice@example.com",
+		Password: "Password123!",
+	})
+	if !errors.Is(err, application.ErrAuthenticationFailed) {
+		t.Fatalf("expected ErrAuthenticationFailed, got %v", err)
 	}
 }
