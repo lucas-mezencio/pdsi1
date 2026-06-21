@@ -6,11 +6,15 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
+
 	gen "github.com.br/lucas-mezencio/pdsi1/internal/api/gen"
 	"github.com.br/lucas-mezencio/pdsi1/internal/application"
 	"github.com.br/lucas-mezencio/pdsi1/internal/application/commands"
 	"github.com.br/lucas-mezencio/pdsi1/internal/application/queries"
 	"github.com.br/lucas-mezencio/pdsi1/internal/domain/prescription"
+	"github.com.br/lucas-mezencio/pdsi1/internal/domain/user"
 )
 
 // Server implements the generated API interface.
@@ -339,7 +343,7 @@ func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := s.authCommands.Login(r.Context(), commands.LoginCommand{
+	user, token, err := s.authCommands.Login(r.Context(), commands.LoginCommand{
 		Email:    string(body.Email),
 		Password: body.Password,
 	})
@@ -347,7 +351,10 @@ func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 		writeCommandError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, user)
+	writeJSON(w, http.StatusOK, gen.AuthResponse{
+		Token: token,
+		User:  userToGen(user),
+	})
 }
 
 func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
@@ -434,6 +441,31 @@ func uuidPtrToString(value *gen.UserId) string {
 		return ""
 	}
 	return value.String()
+}
+
+// userToGen converts a domain user into the OpenAPI-generated User type so
+// that handlers can build responses that match the published contract
+// (gen.AuthResponse, etc.).
+func userToGen(u *user.User) gen.User {
+	if u == nil {
+		return gen.User{}
+	}
+	genUser := gen.User{
+		Name:                 u.Name,
+		Email:                openapi_types.Email(u.Email),
+		Phone:                u.Phone,
+		NotificationsEnabled: u.NotificationsEnabled,
+		CreatedAt:            u.CreatedAt,
+		UpdatedAt:            u.UpdatedAt,
+	}
+	if id, err := uuid.Parse(u.ID); err == nil {
+		genUser.Id = gen.UserId(id)
+	}
+	if u.FirebaseToken != "" {
+		token := u.FirebaseToken
+		genUser.FirebaseToken = &token
+	}
+	return genUser
 }
 
 func uuidPtrToStringDoctor(value *gen.DoctorId) string {

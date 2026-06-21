@@ -61,7 +61,12 @@ paths:
       tags:
         - Auth
       summary: Login user
-      description: Authenticate a user and get access token
+      description: |
+        Authenticate a user with email and password. Returns a Firebase ID
+        token (JWT) that the client must send as `Authorization: Bearer <token>`
+        on subsequent authenticated requests. This `token` is the API auth/bearer
+        token and is **different** from the user's `firebase_token` field, which
+        is the FCM device token used for push notifications.
       operationId: login
       security: []
       requestBody:
@@ -239,7 +244,10 @@ paths:
               properties:
                 firebase_token:
                   type: string
-                  description: Firebase Cloud Messaging token
+                  description: |
+                    Firebase Cloud Messaging (FCM) device token used to deliver
+                    push notifications to this user's device. Not to be confused
+                    with the API auth/bearer token returned by `/auth/login`.
                   example: "fCM_token_abc123xyz"
       responses:
         '200':
@@ -757,7 +765,11 @@ components:
           example: "52998224725"
         firebase_token:
           type: string
-          description: Firebase Cloud Messaging token
+          description: |
+            Firebase Cloud Messaging (FCM) device token used to deliver push
+            notifications to this user's device. This is **not** the API
+            auth/bearer token — the bearer token is returned by the login
+            endpoint in `AuthResponse.token`.
           example: "fCM_token_abc123xyz"
         notifications_enabled:
           type: boolean
@@ -1135,10 +1147,17 @@ components:
 
     AuthResponse:
       type: object
+      description: |
+        Authentication response returned by `/auth/login` and
+        `/auth/login/doctor`. The `token` is a Firebase ID token (JWT) that
+        must be sent as `Authorization: Bearer <token>` on subsequent
+        authenticated requests. It is **not** the same as the `firebase_token`
+        field on the user — that one is the FCM device token used for push
+        notifications and is unrelated to API authentication.
       properties:
         token:
           type: string
-          description: JWT access token
+          description: Firebase ID token (JWT) to be used as bearer token
           example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
         user:
           $ref: '#/components/schemas/User'

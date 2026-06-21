@@ -13,7 +13,9 @@ import (
 type AuthenticationProvider interface {
 	CreateUser(ctx context.Context, email, password string) (string, error)
 	DeleteUser(ctx context.Context, firebaseID string) error
-	SignIn(ctx context.Context, email, password string) (string, error)
+	// SignIn authenticates a user and returns the Firebase UID together with
+	// the ID token (JWT) that callers should expose as the API auth/bearer token.
+	SignIn(ctx context.Context, email, password string) (firebaseID string, idToken string, err error)
 }
 
 // RegisterCommand holds data to create account in Firebase and local DB.
@@ -104,43 +106,48 @@ func (h *AuthCommandHandler) Register(ctx context.Context, cmd RegisterCommand) 
 	return entity, nil
 }
 
-// Login validates credentials at Firebase and returns linked local user.
-func (h *AuthCommandHandler) Login(ctx context.Context, cmd LoginCommand) (*user.User, error) {
+// Login validates credentials at Firebase and returns the linked local user
+// together with the Firebase ID token (JWT) that the API surfaces as the
+// auth/bearer token.
+func (h *AuthCommandHandler) Login(ctx context.Context, cmd LoginCommand) (*user.User, string, error) {
 	if h.authProvider == nil {
-		return nil, application.ErrAuthNotConfigured
+		return nil, "", application.ErrAuthNotConfigured
 	}
 	email := strings.TrimSpace(cmd.Email)
 	password := strings.TrimSpace(cmd.Password)
 	if email == "" || password == "" {
-		return nil, application.ErrInvalidInput
+		return nil, "", application.ErrInvalidInput
 	}
 
-	firebaseID, err := h.authProvider.SignIn(ctx, email, password)
+	firebaseID, idToken, err := h.authProvider.SignIn(ctx, email, password)
 	if err != nil {
-		return nil, err
+		return nil, "", err
+	}
+	if strings.TrimSpace(idToken) == "" {
+		return nil, "", application.ErrAuthenticationFailed
 	}
 
 	entity, err := h.repo.FindByFirebaseID(ctx, firebaseID)
 	if err == nil {
-		return entity, nil
+		return entity, idToken, nil
 	}
 	if !errors.Is(err, user.ErrUserNotFound) {
-		return nil, err
+		return nil, "", err
 	}
 
 	// Backfill legacy users that were created before firebase_id existed.
 	entity, err = h.repo.FindByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, user.ErrUserNotFound) {
-			return nil, application.ErrUserNotFound
+			return nil, "", application.ErrUserNotFound
 		}
-		return nil, err
+		return nil, "", err
 	}
 
 	entity.LinkFirebaseAccount(firebaseID)
 	if err := h.repo.Save(ctx, entity); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return entity, nil
+	return entity, idToken, nil
 }

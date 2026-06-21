@@ -82,26 +82,31 @@ func (s *Service) DeleteUser(ctx context.Context, firebaseID string) error {
 	return nil
 }
 
-func (s *Service) SignIn(ctx context.Context, email, password string) (string, error) {
+// SignIn authenticates the user against Firebase Identity Toolkit and returns
+// the Firebase UID plus the ID token (JWT) to be used as the API auth/bearer
+// token. The ID token is the value the caller should expose to clients; the
+// firebase_token field on the user model is the FCM device token used for push
+// notifications and is unrelated.
+func (s *Service) SignIn(ctx context.Context, email, password string) (string, string, error) {
 	requestBody, err := json.Marshal(map[string]any{
 		"email":             email,
 		"password":          password,
 		"returnSecureToken": true,
 	})
 	if err != nil {
-		return "", fmt.Errorf("failed to encode sign in request: %w", err)
+		return "", "", fmt.Errorf("failed to encode sign in request: %w", err)
 	}
 
 	endpoint := signInWithPasswordEndpoint + "?key=" + url.QueryEscape(s.apiKey)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(requestBody))
 	if err != nil {
-		return "", fmt.Errorf("failed to build sign in request: %w", err)
+		return "", "", fmt.Errorf("failed to build sign in request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("firebase sign in request failed: %w", err)
+		return "", "", fmt.Errorf("firebase sign in request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -113,24 +118,28 @@ func (s *Service) SignIn(ctx context.Context, email, password string) (string, e
 		}
 		_ = json.NewDecoder(resp.Body).Decode(&payload)
 		if isInvalidCredentialsError(payload.Error.Message) {
-			return "", application.ErrAuthenticationFailed
+			return "", "", application.ErrAuthenticationFailed
 		}
 		if payload.Error.Message == "" {
-			return "", errors.New("firebase sign in failed")
+			return "", "", errors.New("firebase sign in failed")
 		}
-		return "", fmt.Errorf("firebase sign in failed: %s", payload.Error.Message)
+		return "", "", fmt.Errorf("firebase sign in failed: %s", payload.Error.Message)
 	}
 
 	var payload struct {
 		LocalID string `json:"localId"`
+		IDToken string `json:"idToken"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return "", fmt.Errorf("failed to decode firebase sign in response: %w", err)
+		return "", "", fmt.Errorf("failed to decode firebase sign in response: %w", err)
 	}
 	if strings.TrimSpace(payload.LocalID) == "" {
-		return "", errors.New("firebase sign in response missing localId")
+		return "", "", errors.New("firebase sign in response missing localId")
 	}
-	return payload.LocalID, nil
+	if strings.TrimSpace(payload.IDToken) == "" {
+		return "", "", errors.New("firebase sign in response missing idToken")
+	}
+	return payload.LocalID, payload.IDToken, nil
 }
 
 func isInvalidCredentialsError(message string) bool {
