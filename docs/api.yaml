@@ -291,6 +291,41 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  # LGPD data-export endpoint
+  /users/me/data-export:
+    get:
+      tags:
+        - Users
+        - LGPD
+      summary: Export all personal data for the authenticated user (LGPD / GDPR right of access)
+      description: |
+        Returns every category of personal data CareConnect holds about the
+        authenticated caller, including **sensitive health data**
+        (prescriptions with their medicaments, and dose records), plus linked
+        caregivers/charges and caregiver invitations.
+
+        The caller ID is taken from the JWT — users can only ever export
+        their own data. This endpoint serves the Brazilian LGPD (Lei Geral
+        de Proteção de Dados, equivalent to GDPR) right of access.
+
+        This endpoint is currently implemented as an extended route outside
+        the generated OpenAPI server. The spec is provided here for
+        documentation purposes.
+      operationId: lgpdDataExport
+      responses:
+        '200':
+          description: Full data export for the authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDataExport'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   # Doctor endpoints
   /doctors:
     get:
@@ -714,6 +749,12 @@ components:
           type: string
           description: User's phone number
           example: "+1234567890"
+        cpf:
+          type: string
+          description: |
+            Brazilian CPF (Cadastro de Pessoa Física), digits-only.
+            May be empty if the user was registered without one.
+          example: "52998224725"
         firebase_token:
           type: string
           description: Firebase Cloud Messaging token
@@ -1050,11 +1091,25 @@ components:
           type: string
           description: User's phone number
           example: "+1234567890"
+        cpf:
+          type: string
+          description: |
+            Brazilian CPF (Cadastro de Pessoa Física) — 11 digits.
+            Optional, but when present is validated using the official
+            modulo-11 checksum and normalized to digits-only.
+            Accepts formatted input such as "529.982.247-25".
+          example: "529.982.247-25"
         password:
           type: string
           format: password
           description: User's password
           example: "securepassword123"
+        role:
+          type: string
+          enum: [ELDERLY, CAREGIVER]
+          description: |
+            User role. Optional, defaults to "ELDERLY" if omitted or invalid.
+          example: "ELDERLY"
       required:
         - name
         - email
@@ -1091,6 +1146,117 @@ components:
         - token
         - user
 
+    # LGPD / GDPR data-export schemas
+    DoseRecord:
+      type: object
+      description: |
+        A single scheduled dose and whether it was taken. Sensitive health
+        data — included in the LGPD data-export.
+      properties:
+        id:
+          type: string
+          format: uuid
+        prescription_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        medicament_name:
+          type: string
+          example: "AAS"
+        dosage:
+          type: string
+          example: "100mg"
+        scheduled_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [PENDING, TAKEN, MISSED]
+        confirmed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CaregiverInvitation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        caregiver_id:
+          type: string
+          format: uuid
+        elderly_id:
+          type: string
+          format: uuid
+        token:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, ACCEPTED, REJECTED]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UserDataExport:
+      type: object
+      description: |
+        Full LGPD/GDPR right-of-access export for a user. Contains every
+        category of personal data CareConnect holds about the caller,
+        including sensitive health data (prescriptions with their medicaments,
+        and dose records), linked caregivers/charges, and caregiver
+        invitations.
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        prescriptions:
+          type: array
+          description: All prescriptions (including inactive) — sensitive health data.
+          items:
+            $ref: '#/components/schemas/Prescription'
+        dose_records:
+          type: array
+          description: All dose records — sensitive health data.
+          items:
+            $ref: '#/components/schemas/DoseRecord'
+        caregivers:
+          type: array
+          description: |
+            Users linked to the caller as caregivers (only populated when
+            the caller is an elderly user).
+          items:
+            $ref: '#/components/schemas/User'
+        charges:
+          type: array
+          description: |
+            Users the caller is a caregiver for (only populated when the
+            caller has role=CAREGIVER).
+          items:
+            $ref: '#/components/schemas/User'
+        invitations:
+          type: array
+          description: Caregiver invitations where the caller is elderly or caregiver.
+          items:
+            $ref: '#/components/schemas/CaregiverInvitation'
+      required:
+        - user
+        - prescriptions
+        - dose_records
+        - caregivers
+        - charges
+        - invitations
+
   responses:
     BadRequest:
       description: Bad request - invalid input
@@ -1111,6 +1277,16 @@ components:
           example:
             error: "Not found"
             details: "User with ID '123' not found"
+
+    Unauthorized:
+      description: Unauthorized - missing or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Unauthorized"
+            details: "Missing or invalid bearer token"
 
     InternalServerError:
       description: Internal server error

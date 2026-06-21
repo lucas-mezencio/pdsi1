@@ -20,6 +20,7 @@ type ExtendedServer struct {
 	doseCommands      *commands.DoseRecordCommandHandler
 	doseQueries       *queries.DoseRecordQueryHandler
 	linkedUserQueries *queries.LinkedUserQueryHandler
+	lgpdQueries       *queries.LGPDQueryHandler
 }
 
 // NewExtendedServer creates an ExtendedServer.
@@ -30,6 +31,7 @@ func NewExtendedServer(
 	doseCommands *commands.DoseRecordCommandHandler,
 	doseQueries *queries.DoseRecordQueryHandler,
 	linkedUserQueries *queries.LinkedUserQueryHandler,
+	lgpdQueries *queries.LGPDQueryHandler,
 ) *ExtendedServer {
 	return &ExtendedServer{
 		userRepo:          userRepo,
@@ -38,6 +40,7 @@ func NewExtendedServer(
 		doseCommands:      doseCommands,
 		doseQueries:       doseQueries,
 		linkedUserQueries: linkedUserQueries,
+		lgpdQueries:       lgpdQueries,
 	}
 }
 
@@ -245,6 +248,36 @@ func (s *ExtendedServer) MarkDoseMissed(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusOK, record)
+}
+
+// --- LGPD data-export endpoint ---
+
+// LGPDDataExport handles GET /users/me/data-export.
+//
+// This endpoint serves the Brazilian LGPD (and equivalent GDPR) right of
+// access: it returns every category of personal data CareConnect stores about
+// the authenticated caller, including sensitive health data (prescriptions
+// and dose records).
+//
+// The caller ID is taken from the JWT context set by AuthMiddleware, not the
+// URL — so users can only ever retrieve their own data.
+func (s *ExtendedServer) LGPDDataExport(w http.ResponseWriter, r *http.Request) {
+	callerID := callerUserID(r)
+	if callerID == "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "no authenticated user")
+		return
+	}
+
+	export, err := s.lgpdQueries.ExportForUser(r.Context(), callerID)
+	if err != nil {
+		if errors.Is(err, application.ErrUserNotFound) {
+			writeError(w, http.StatusNotFound, "user not found", err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to export user data", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, export)
 }
 
 func writeExtendedError(w http.ResponseWriter, err error) {

@@ -21,6 +21,7 @@ type RegisterCommand struct {
 	Name     string
 	Email    string
 	Phone    string
+	CPF      string
 	Password string
 	Role     string
 }
@@ -56,6 +57,12 @@ func (h *AuthCommandHandler) Register(ctx context.Context, cmd RegisterCommand) 
 		strings.TrimSpace(cmd.Password) == "" {
 		return nil, application.ErrInvalidInput
 	}
+	cpf := strings.TrimSpace(cmd.CPF)
+	if cpf != "" {
+		if _, err := user.ValidateCPF(cpf); err != nil {
+			return nil, application.ErrInvalidInput
+		}
+	}
 	email := strings.TrimSpace(cmd.Email)
 
 	_, err := h.repo.FindByEmail(ctx, email)
@@ -75,10 +82,14 @@ func (h *AuthCommandHandler) Register(ctx context.Context, cmd RegisterCommand) 
 		strings.TrimSpace(cmd.Name),
 		email,
 		strings.TrimSpace(cmd.Phone),
+		cpf,
 		"", // firebaseToken: not needed at registration
 		user.Role(cmd.Role),
 	)
 	if err != nil {
+		if errors.Is(err, user.ErrInvalidCPF) {
+			return nil, application.ErrInvalidInput
+		}
 		_ = h.authProvider.DeleteUser(ctx, firebaseID)
 		return nil, err
 	}
