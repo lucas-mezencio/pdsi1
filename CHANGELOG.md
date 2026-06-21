@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-06-21
+
+### Fixed
+- `POST /auth/login` now returns the Firebase ID token (JWT) as the bearer
+  token, matching the `AuthResponse{ token, user }` shape defined in the
+  OpenAPI contract. Previously the handler returned the user object
+  directly and discarded the `idToken` returned by the Firebase
+  `signInWithPassword` API. This change:
+  - Extends `AuthenticationProvider.SignIn` to also return the `idToken`.
+  - Updates `AuthCommandHandler.Login` and `DoctorAuthCommandHandler.Login`
+    to return both the local entity and the ID token.
+  - Returns `gen.AuthResponse` from the `/auth/login` HTTP handler.
+  - Clarifies the OpenAPI descriptions so the bearer token is not confused
+    with the user's `firebase_token` (FCM device token for push
+    notifications).
+- HTTP-level and command-level regression tests assert the token is
+  surfaced from login.
+
+## [0.3.0] - 2026-06-21
+
+### Added
+- Brazilian CPF (Cadastro de Pessoa Física) field on user registration with
+  full checksum validation. The field is optional to support legacy users
+  but, when provided, is verified server-side via `user.ValidateCPF`.
+- LGPD / GDPR right-of-access data-export endpoint that returns the
+  authenticated user's personal data, including the prescribed dose
+  records and any caregiver relationships.
+- New `RegisterDoctorRequest`/`Doctor` schema fields surfaced through the
+  generated OpenAPI types.
+
+### Changed
+- `Register` endpoint accepts and persists `cpf`; OpenAPI
+  `RegisterRequest` and `User` schemas updated accordingly.
+
 ## [0.2.2] - 2026-06-21
 
 ### Fixed
@@ -88,6 +122,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[0.3.1]: https://github.com/lucas-mezencio/CareConnect/releases/tag/v0.3.1
+[0.3.0]: https://github.com/lucas-mezencio/CareConnect/releases/tag/v0.3.0
 [0.2.2]: https://github.com/lucas-mezencio/CareConnect/releases/tag/v0.2.2
 [0.2.0]: https://github.com/lucas-mezencio/CareConnect/releases/tag/v0.2.0
 [0.1.0]: https://github.com/lucas-mezencio/CareConnect/releases/tag/v0.1.0
