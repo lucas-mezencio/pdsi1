@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-06-21
+
+### Fixed
+- `POST /auth/login` no longer requires authentication — clients can now obtain
+  a token. The auth middleware was incorrectly blocking the very request that
+  issues credentials. Added regression test
+  `TestAuthMiddleware_PublicPaths` to lock in the public-path bypass.
+
 ## [0.2.0] - 2026-05-31
 
 ### Added
@@ -80,5 +88,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[0.2.2]: https://github.com/lucas-mezencio/CareConnect/releases/tag/v0.2.2
 [0.2.0]: https://github.com/lucas-mezencio/CareConnect/releases/tag/v0.2.0
 [0.1.0]: https://github.com/lucas-mezencio/CareConnect/releases/tag/v0.1.0
