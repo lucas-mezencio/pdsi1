@@ -80,13 +80,12 @@ func AuthMiddleware(firebaseAuth *auth.Client, demoSecret string) func(http.Hand
 				return
 			}
 
-			parts := strings.SplitN(authHeader, " ", 2)
-			if len(parts) != 2 || parts[0] != "Bearer" {
+			token, ok := extractBearerToken(authHeader)
+			if !ok {
 				writeError(w, http.StatusUnauthorized, "invalid authorization format", "")
 				return
 			}
 
-			token := parts[1]
 			firebaseToken, err := firebaseAuth.VerifyIDToken(r.Context(), token)
 			if err != nil {
 				writeError(w, http.StatusUnauthorized, "invalid token", err.Error())
@@ -111,6 +110,54 @@ func callerUserID(r *http.Request) string {
 func callerRole(r *http.Request) user.Role {
 	v, _ := r.Context().Value(contextKeyUserRole).(user.Role)
 	return v
+}
+
+// extractBearerToken pulls the Firebase ID token out of an Authorization
+// header value. It accepts:
+//
+//   - `Bearer <jwt>` (RFC 6750, case-insensitive scheme, whitespace tolerated)
+//   - `<jwt>` (raw token, exactly what /auth/login returns)
+//
+// Anything else — non-Bearer schemes (`Basic xyz`, `Token xyz`), malformed
+// JWTs, or empty values — is rejected so we never pass nonsense to Firebase
+// VerifyIDToken.
+func extractBearerToken(header string) (string, bool) {
+	trimmed := strings.TrimSpace(header)
+	if trimmed == "" {
+		return "", false
+	}
+
+	if parts := strings.SplitN(trimmed, " ", 2); len(parts) == 2 {
+		if !strings.EqualFold(parts[0], "Bearer") {
+			return "", false
+		}
+		token := strings.TrimSpace(parts[1])
+		if !looksLikeJWT(token) {
+			return "", false
+		}
+		return token, true
+	}
+
+	if !looksLikeJWT(trimmed) {
+		return "", false
+	}
+	return trimmed, true
+}
+
+// looksLikeJWT reports whether value has the three-segment shape of a JWT
+// (header.payload.signature), where each segment is non-empty and contains
+// no whitespace.
+func looksLikeJWT(value string) bool {
+	segments := strings.Split(value, ".")
+	if len(segments) != 3 {
+		return false
+	}
+	for _, segment := range segments {
+		if segment == "" || strings.ContainsAny(segment, " \t\r\n") {
+			return false
+		}
+	}
+	return true
 }
 
 // DemoSecretMiddleware validates a static secret in Authorization header

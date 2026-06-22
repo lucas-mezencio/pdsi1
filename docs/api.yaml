@@ -698,7 +698,14 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Firebase JWT token for authentication
+      description: |
+        Firebase JWT token for authentication. The `Authorization` header
+        accepts either the standard form `Bearer <token>` (scheme
+        case-insensitive) or the bare Firebase ID token returned by
+        `/auth/login` — both are accepted so clients can paste the token
+        straight from the login response without adding a prefix.
+        Non-Bearer schemes (e.g. `Basic`, `Token`) and malformed tokens
+        are rejected with `401 invalid authorization format`.
       x-issuer: Firebase
 
     DemoSecret:
@@ -1298,14 +1305,31 @@ components:
             details: "User with ID '123' not found"
 
     Unauthorized:
-      description: Unauthorized - missing or invalid credentials
+      description: |
+        Unauthorized. The `Authorization` header is missing, malformed, or
+        carries a token that Firebase rejected. Acceptable forms are
+        `Bearer <firebase-id-token>` (case-insensitive) or the bare
+        Firebase ID token returned by `/auth/login`. Non-Bearer schemes
+        (e.g. `Basic`, `Token`) and malformed values are rejected with
+        `401 invalid authorization format`.
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
-          example:
-            error: "Unauthorized"
-            details: "Missing or invalid bearer token"
+          examples:
+            missing_header:
+              summary: Authorization header missing
+              value:
+                error: "missing authorization header"
+            invalid_format:
+              summary: Header value is not a Bearer token or a JWT
+              value:
+                error: "invalid authorization format"
+            invalid_token:
+              summary: Firebase VerifyIDToken rejected the token
+              value:
+                error: "invalid token"
+                details: "auth/token-expired"
 
     InternalServerError:
       description: Internal server error

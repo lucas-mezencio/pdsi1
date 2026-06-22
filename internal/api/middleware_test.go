@@ -181,3 +181,111 @@ func TestAuthMiddleware_PublicPaths(t *testing.T) {
 		}
 	})
 }
+
+// TestExtractBearerToken exercises the helper that decides what counts as a
+// valid Authorization header value. It must accept the standard
+// `Bearer <jwt>` form, case-insensitive variants, and the raw JWT returned by
+// the login endpoint. Anything that doesn't look like a JWT (no `Bearer`
+// scheme and not three dot-separated segments) must be rejected so we never
+// pass nonsense like `Basic xyz` to Firebase VerifyIDToken.
+func TestExtractBearerToken(t *testing.T) {
+	const rawJWT = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1aWQiLCJpYXQiOjE3MDAwMDAwMDB9.signature"
+
+	tests := []struct {
+		name      string
+		header    string
+		wantToken string
+		wantOK    bool
+	}{
+		{
+			name:      "Bearer prefix with raw JWT",
+			header:    "Bearer " + rawJWT,
+			wantToken: rawJWT,
+			wantOK:    true,
+		},
+		{
+			name:      "lowercase bearer prefix",
+			header:    "bearer " + rawJWT,
+			wantToken: rawJWT,
+			wantOK:    true,
+		},
+		{
+			name:      "uppercase BEARER prefix",
+			header:    "BEARER " + rawJWT,
+			wantToken: rawJWT,
+			wantOK:    true,
+		},
+		{
+			name:      "mixed-case BeArEr prefix",
+			header:    "BeArEr " + rawJWT,
+			wantToken: rawJWT,
+			wantOK:    true,
+		},
+		{
+			name:      "Bearer prefix with surrounding whitespace",
+			header:    "  Bearer " + rawJWT + "  ",
+			wantToken: rawJWT,
+			wantOK:    true,
+		},
+		{
+			name:      "raw JWT without prefix",
+			header:    rawJWT,
+			wantToken: rawJWT,
+			wantOK:    true,
+		},
+		{
+			name:      "raw JWT with surrounding whitespace",
+			header:    "  " + rawJWT + "  ",
+			wantToken: rawJWT,
+			wantOK:    true,
+		},
+		{
+			name:      "Bearer with empty token",
+			header:    "Bearer ",
+			wantToken: "",
+			wantOK:    false,
+		},
+		{
+			name:      "Bearer prefix and single-segment token rejected",
+			header:    "Bearer notajwt",
+			wantToken: "",
+			wantOK:    false,
+		},
+		{
+			name:      "non-JWT garbage rejected",
+			header:    "this is not a token",
+			wantToken: "",
+			wantOK:    false,
+		},
+		{
+			name:      "Basic scheme rejected",
+			header:    "Basic dXNlcjpwYXNz",
+			wantToken: "",
+			wantOK:    false,
+		},
+		{
+			name:      "Token scheme rejected",
+			header:    "Token " + rawJWT,
+			wantToken: "",
+			wantOK:    false,
+		},
+		{
+			name:      "empty string rejected",
+			header:    "",
+			wantToken: "",
+			wantOK:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotToken, gotOK := extractBearerToken(tt.header)
+			if gotOK != tt.wantOK {
+				t.Fatalf("ok = %v, want %v (token=%q)", gotOK, tt.wantOK, gotToken)
+			}
+			if gotToken != tt.wantToken {
+				t.Errorf("token = %q, want %q", gotToken, tt.wantToken)
+			}
+		})
+	}
+}
