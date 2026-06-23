@@ -18,6 +18,8 @@ type Config struct {
 	FirebaseWebAPIKey       string
 	NotificationLookback    time.Duration
 	DemoPrescriptionSecret  string
+	LogFormat               string
+	LogLevel                string
 }
 
 const (
@@ -26,6 +28,8 @@ const (
 	defaultRedisAddr            = "localhost:6379"
 	defaultNotifierMode         = "dev"
 	defaultNotificationLookback = 2 * time.Hour
+	defaultLogFormat            = "text"
+	defaultLogLevel             = "info"
 )
 
 // Load loads configuration from .env (if present) and environment variables.
@@ -41,6 +45,8 @@ func Load() (*Config, error) {
 		FirebaseWebAPIKey:       envString("FIREBASE_WEB_API_KEY", ""),
 		NotificationLookback:    defaultNotificationLookback,
 		DemoPrescriptionSecret:  envString("DEMO_PRESCRIPTION_SECRET", ""),
+		LogFormat:               envString("LOG_FORMAT", defaultLogFormat),
+		LogLevel:                envString("LOG_LEVEL", defaultLogLevel),
 	}, nil
 }
 

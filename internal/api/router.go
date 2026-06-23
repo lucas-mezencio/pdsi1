@@ -12,6 +12,10 @@ import (
 func NewRouter(server gen.ServerInterface, ext *ExtendedServer, firebaseAuth *auth.Client, demoSecret string) http.Handler {
 	router := chi.NewRouter()
 
+	// Logging middleware: emits one slog entry per request (must run first so
+	// unauthorized requests are still observed).
+	router.Use(LoggingMiddleware)
+
 	// Auth middleware: validates Firebase JWT Bearer tokens (or demo secret for POST /prescriptions)
 	if firebaseAuth != nil {
 		router.Use(AuthMiddleware(firebaseAuth, demoSecret))
