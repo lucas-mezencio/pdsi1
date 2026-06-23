@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -79,6 +80,11 @@ func (s *Server) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	slog.DebugContext(r.Context(), "creating user",
+		"email", body.Email,
+		"role", body.Role,
+	)
+
 	created, err := s.userCommands.Create(r.Context(), commands.CreateUserCommand{
 		Name:          body.Name,
 		Email:         body.Email,
@@ -92,6 +98,8 @@ func (s *Server) CreateUser(w http.ResponseWriter, r *http.Request) {
 		writeCommandError(w, err)
 		return
 	}
+
+	slog.DebugContext(r.Context(), "user created", "user_id", created.ID)
 	writeJSON(w, http.StatusCreated, created)
 }
 
@@ -251,15 +259,24 @@ func (s *Server) CreatePrescription(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID := body.UserId.String()
+	medicID := body.MedicId.String()
+	slog.DebugContext(r.Context(), "creating prescription",
+		"user_id", userID,
+		"medic_id", medicID,
+		"medicament_count", len(body.Medicaments),
+	)
+
 	created, err := s.prescriptionCommands.Create(r.Context(), commands.CreatePrescriptionCommand{
-		UserID:      body.UserId.String(),
-		MedicID:     body.MedicId.String(),
+		UserID:      userID,
+		MedicID:     medicID,
 		Medicaments: toDomainMedicaments(body.Medicaments),
 	})
 	if err != nil {
 		writeCommandError(w, err)
 		return
 	}
+	slog.DebugContext(r.Context(), "prescription created", "prescription_id", created.ID)
 	writeJSON(w, http.StatusCreated, created)
 }
 
@@ -343,6 +360,8 @@ func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	slog.DebugContext(r.Context(), "login attempt", "email", string(body.Email))
+
 	user, token, err := s.authCommands.Login(r.Context(), commands.LoginCommand{
 		Email:    string(body.Email),
 		Password: body.Password,
@@ -351,6 +370,7 @@ func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 		writeCommandError(w, err)
 		return
 	}
+	slog.DebugContext(r.Context(), "login succeeded", "user_id", user.ID)
 	writeJSON(w, http.StatusOK, gen.AuthResponse{
 		Token: token,
 		User:  userToGen(user),

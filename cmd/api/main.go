@@ -3,15 +3,18 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
-	"os/signal"
-	"syscall"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill-redisstream/pkg/redisstream"
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/sync/errgroup"
 
 	httpapi "github.com.br/lucas-mezencio/pdsi1/internal/api"
 	"github.com.br/lucas-mezencio/pdsi1/internal/application"
@@ -24,14 +27,61 @@ import (
 	"github.com.br/lucas-mezencio/pdsi1/internal/infrastructure/scheduler"
 )
 
+// setupLogger builds the global slog logger from config and installs it as the
+// default. After this returns every call to slog.Info / slog.Error / etc. goes
+// through the configured handler at the configured level.
+func setupLogger(cfg config.Config) {
+	var level slog.Level
+	switch strings.ToLower(cfg.LogLevel) {
+	case "debug":
+		level = slog.LevelDebug
+	case "warn":
+		level = slog.LevelWarn
+	case "error":
+		level = slog.LevelError
+	default:
+		level = slog.LevelInfo
+	}
+
+	opts := &slog.HandlerOptions{Level: level}
+	var handler slog.Handler
+	if strings.ToLower(cfg.LogFormat) == "json" {
+		handler = slog.NewJSONHandler(os.Stdout, opts)
+	} else {
+		handler = slog.NewTextHandler(os.Stdout, opts)
+	}
+	slog.SetDefault(slog.New(handler))
+}
+
+// newNotificationSender builds the configured notification.Sender. Returns an
+// error for unrecoverable misconfiguration (unknown mode, firebase init
+// failure) so main can fail fast with the same os.Exit(1) pattern used by
+// every other init above.
+func newNotificationSender(ctx context.Context, cfg config.Config) (notification.Sender, error) {
+	switch cfg.NotifierMode {
+	case "dev":
+		return &notification.DummySender{}, nil
+	case "ready", "":
+		return notification.NewFirebaseSender(ctx, cfg.FirebaseCredentialsFile)
+	default:
+		return nil, fmt.Errorf("unknown notifier mode %q", cfg.NotifierMode)
+	}
+}
+
 func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
+	// ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	// defer stop()
+	//
+	ctx := context.Background()
 
 	appConfig, err := config.Load()
 	if err != nil {
+		// Logger not configured yet — fall back to stdlib for this single message.
 		log.Fatalf("config load failed: %v", err)
 	}
+
+	setupLogger(*appConfig)
+	slog.Info("logger initialized", "format", appConfig.LogFormat, "level", appConfig.LogLevel)
 
 	addr := appConfig.HTTPAddr
 	dsn := appConfig.DatabaseURL
@@ -39,36 +89,40 @@ func main() {
 
 	db, err := database.NewPostgresDB(ctx, dsn)
 	if err != nil {
-		log.Fatalf("db connect failed: %v", err)
+		slog.Error("db connect failed", "err", err)
+		os.Exit(1)
 	}
 	defer func() {
 		if err := db.Close(); err != nil {
-			log.Printf("db close failed: %v", err)
+			slog.Error("db close failed", "err", err)
 		}
 	}()
 
 	if err := database.Migrate(ctx, db); err != nil {
-		log.Fatalf("migration failed: %v", err)
+		slog.Error("migration failed", "err", err)
+		os.Exit(1)
 	}
 
 	redisClient := redis.NewClient(&redis.Options{Addr: redisAddr})
 	if err := redisClient.Ping(ctx).Err(); err != nil {
-		log.Fatalf("redis connect failed: %v", err)
+		slog.Error("redis connect failed", "err", err)
+		os.Exit(1)
 	}
 	defer func() {
 		if err := redisClient.Close(); err != nil {
-			log.Printf("redis close failed: %v", err)
+			slog.Error("redis close failed", "err", err)
 		}
 	}()
 
-	logger := watermill.NopLogger{}
-	publisher, err := redisstream.NewPublisher(redisstream.PublisherConfig{Client: redisClient}, &logger)
+	logger := watermill.NewSlogLogger(slog.Default())
+	publisher, err := redisstream.NewPublisher(redisstream.PublisherConfig{Client: redisClient}, logger)
 	if err != nil {
-		log.Fatalf("publisher init failed: %v", err)
+		slog.Error("publisher init failed", "err", err)
+		os.Exit(1)
 	}
 	defer func() {
 		if err := publisher.Close(); err != nil {
-			log.Printf("publisher close failed: %v", err)
+			slog.Error("publisher close failed", "err", err)
 		}
 	}()
 
@@ -77,13 +131,14 @@ func main() {
 		ConsumerGroup: "mednotify",
 		Consumer:      "api",
 		BlockTime:     100 * time.Millisecond,
-	}, &logger)
+	}, logger)
 	if err != nil {
-		log.Fatalf("subscriber init failed: %v", err)
+		slog.Error("subscriber init failed", "err", err)
+		os.Exit(1)
 	}
 	defer func() {
 		if err := subscriber.Close(); err != nil {
-			log.Printf("subscriber close failed: %v", err)
+			slog.Error("subscriber close failed", "err", err)
 		}
 	}()
 
@@ -98,9 +153,9 @@ func main() {
 	firebaseAuthService, err := firebaseauth.NewService(ctx, appConfig.FirebaseCredentialsFile, appConfig.FirebaseWebAPIKey)
 	if err != nil {
 		if errors.Is(err, application.ErrAuthNotConfigured) {
-			log.Printf("firebase auth disabled: set FIREBASE_CREDENTIALS_FILE and FIREBASE_WEB_API_KEY")
+			slog.Warn("firebase auth disabled: set FIREBASE_CREDENTIALS_FILE and FIREBASE_WEB_API_KEY")
 		} else {
-			log.Printf("firebase auth init failed: %v", err)
+			slog.Error("firebase auth init failed", "err", err)
 		}
 	} else {
 		authProvider = firebaseAuthService
@@ -108,39 +163,18 @@ func main() {
 
 	schedulerAdapter, err := scheduler.NewRedisScheduler(scheduler.RedisSchedulerConfig{Client: redisClient})
 	if err != nil {
-		log.Fatalf("scheduler init failed: %v", err)
+		slog.Error("scheduler init failed", "err", err)
+		os.Exit(1)
 	}
 
 	worker := scheduler.NewSchedulerWorker(redisClient, publisher, "", appConfig.NotificationLookback, eventStore)
 	worker.WithDoseRecordStore(doseRecordRepo)
-	go func() {
-		if err := worker.Run(ctx); err != nil && err != context.Canceled {
-			log.Printf("scheduler worker stopped: %v", err)
-		}
-	}()
 
-	go func() {
-		var sender notification.Sender
-		switch appConfig.NotifierMode {
-		case "dev":
-			sender = &notification.DummySender{}
-		case "ready", "":
-			firebaseSender, err := notification.NewFirebaseSender(ctx, appConfig.FirebaseCredentialsFile)
-			if err != nil {
-				log.Printf("firebase sender init failed: %v", err)
-				return
-			}
-			sender = firebaseSender
-		default:
-			log.Printf("unknown notifier mode: %s", appConfig.NotifierMode)
-			return
-		}
-
-		cleanup := scheduler.NewRedisCleanupStore(redisClient, "")
-		if err := scheduler.StartNotificationConsumer(ctx, subscriber, sender, userRepo, cleanup); err != nil && err != context.Canceled {
-			log.Printf("notification consumer stopped: %v", err)
-		}
-	}()
+	sender, err := newNotificationSender(ctx, *appConfig)
+	if err != nil {
+		slog.Error("notification sender init failed", "err", err)
+		os.Exit(1)
+	}
 
 	userCommands := commands.NewUserCommandHandler(userRepo)
 	authCommands := commands.NewAuthCommandHandler(userRepo, authProvider)
@@ -187,18 +221,32 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
+	g, gCtx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		if err := worker.Run(gCtx); err != nil && !errors.Is(err, context.Canceled) {
+			return fmt.Errorf("scheduler worker stopped: %w", err)
+		}
+		return nil
+	})
+
+	g.Go(func() error {
+		cleanup := scheduler.NewRedisCleanupStore(redisClient, "")
+		if err := scheduler.StartNotificationConsumer(gCtx, subscriber, sender, userRepo, cleanup); err != nil && !errors.Is(err, context.Canceled) {
+			return fmt.Errorf("notification consumer stopped: %w", err)
+		}
+		return nil
+	})
+
 	go func() {
-		log.Printf("http listening on %s", addr)
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("http server failed: %v", err)
+		if err := g.Wait(); err != nil {
+			slog.Error("background workers exited with error", "err", err)
 		}
 	}()
 
-	<-ctx.Done()
-
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := httpServer.Shutdown(shutdownCtx); err != nil {
-		log.Printf("http shutdown failed: %v", err)
+	slog.Info("http listening", "addr", addr)
+	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		slog.Error("http server failed", "err", err)
+		os.Exit(1)
 	}
 }
