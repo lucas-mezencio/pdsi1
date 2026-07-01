@@ -10,14 +10,14 @@ import (
 )
 
 type mockDoctorRepo struct {
-	saveFn             func(ctx context.Context, doc *doctor.Doctor) error
-	findByIDFn         func(ctx context.Context, id string) (*doctor.Doctor, error)
-	findByEmailFn      func(ctx context.Context, email string) (*doctor.Doctor, error)
-	findByFirebaseIDFn func(ctx context.Context, firebaseID string) (*doctor.Doctor, error)
-	findByLicenseFn    func(ctx context.Context, license string) (*doctor.Doctor, error)
-	findAllFn          func(ctx context.Context) ([]*doctor.Doctor, error)
-	deleteFn           func(ctx context.Context, id string) error
-	existsFn           func(ctx context.Context, id string) (bool, error)
+	saveFn                  func(ctx context.Context, doc *doctor.Doctor) error
+	findByIDFn              func(ctx context.Context, id string) (*doctor.Doctor, error)
+	findByEmailFn           func(ctx context.Context, email string) (*doctor.Doctor, error)
+	findByFirebaseIDFn      func(ctx context.Context, firebaseID string) (*doctor.Doctor, error)
+	findByLicenseNumberFn   func(ctx context.Context, license string) (*doctor.Doctor, error)
+	findAllFn               func(ctx context.Context) ([]*doctor.Doctor, error)
+	deleteFn                func(ctx context.Context, id string) error
+	existsFn                func(ctx context.Context, id string) (bool, error)
 }
 
 func (m *mockDoctorRepo) Save(ctx context.Context, entity *doctor.Doctor) error {
@@ -49,8 +49,8 @@ func (m *mockDoctorRepo) FindByFirebaseID(ctx context.Context, firebaseID string
 }
 
 func (m *mockDoctorRepo) FindByLicenseNumber(ctx context.Context, licenseNumber string) (*doctor.Doctor, error) {
-	if m.findByLicenseFn != nil {
-		return m.findByLicenseFn(ctx, licenseNumber)
+	if m.findByLicenseNumberFn != nil {
+		return m.findByLicenseNumberFn(ctx, licenseNumber)
 	}
 	return nil, doctor.ErrDoctorNotFound
 }
@@ -84,11 +84,12 @@ func TestDoctorCommandHandler_Create(t *testing.T) {
 		return nil
 	}
 
-	handler := NewDoctorCommandHandler(repo)
+	handler := NewDoctorCommandHandler(repo, &stubAuthProvider{})
 	created, err := handler.Create(context.Background(), CreateDoctorCommand{
 		Name:          "Dr. Who",
 		Email:         "who@example.com",
 		Phone:         "999",
+		Password:      "S3cretP@ss",
 		Specialty:     "Time",
 		LicenseNumber: "LIC-1",
 	})
@@ -105,7 +106,7 @@ func TestDoctorCommandHandler_Create(t *testing.T) {
 }
 
 func TestDoctorCommandHandler_Update_InvalidInput(t *testing.T) {
-	handler := NewDoctorCommandHandler(&mockDoctorRepo{})
+	handler := NewDoctorCommandHandler(&mockDoctorRepo{}, &stubAuthProvider{})
 	_, err := handler.Update(context.Background(), UpdateDoctorCommand{})
 	if !errors.Is(err, application.ErrInvalidInput) {
 		t.Fatalf("expected invalid input error, got %v", err)
@@ -119,7 +120,7 @@ func TestDoctorCommandHandler_Update_NotFound(t *testing.T) {
 		},
 	}
 
-	handler := NewDoctorCommandHandler(repo)
+	handler := NewDoctorCommandHandler(repo, &stubAuthProvider{})
 	_, err := handler.Update(context.Background(), UpdateDoctorCommand{ID: "missing"})
 	if !errors.Is(err, application.ErrDoctorNotFound) {
 		t.Fatalf("expected doctor not found error, got %v", err)
@@ -139,7 +140,7 @@ func TestDoctorCommandHandler_Update_Success(t *testing.T) {
 		return nil
 	}
 
-	handler := NewDoctorCommandHandler(repo)
+	handler := NewDoctorCommandHandler(repo, &stubAuthProvider{})
 	updated, err := handler.Update(context.Background(), UpdateDoctorCommand{
 		ID:        "doc-1",
 		Name:      "New",
@@ -171,7 +172,7 @@ func TestDoctorCommandHandler_Delete(t *testing.T) {
 		},
 	}
 
-	handler := NewDoctorCommandHandler(repo)
+	handler := NewDoctorCommandHandler(repo, &stubAuthProvider{})
 	if err := handler.Delete(context.Background(), DeleteDoctorCommand{ID: "doc-1"}); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

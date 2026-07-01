@@ -37,13 +37,14 @@ func (r *UserRepository) Save(ctx context.Context, entity *user.User) error {
 	`
 
 	cpf := sql.NullString{String: entity.CPF, Valid: entity.CPF != ""}
+	firebaseID := sql.NullString{String: entity.FirebaseID, Valid: entity.FirebaseID != ""}
 	_, err := r.db.ExecContext(ctx, query,
 		entity.ID,
 		entity.Name,
 		entity.Email,
 		entity.Phone,
 		cpf,
-		entity.FirebaseID,
+		firebaseID,
 		entity.FirebaseToken,
 		entity.NotificationsEnabled,
 		string(entity.Role),

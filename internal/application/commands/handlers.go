@@ -20,10 +20,11 @@ func NewHandlers(
 	doctorRepo doctor.Repository,
 	prescriptionRepo prescription.Repository,
 	scheduler application.NotificationScheduler,
+	authProvider AuthenticationProvider,
 ) *Handlers {
 	return &Handlers{
-		Users:         NewUserCommandHandler(userRepo),
-		Doctors:       NewDoctorCommandHandler(doctorRepo),
+		Users:         NewUserCommandHandler(userRepo, authProvider),
+		Doctors:       NewDoctorCommandHandler(doctorRepo, authProvider),
 		Prescriptions: NewPrescriptionCommandHandler(prescriptionRepo, userRepo, doctorRepo, scheduler),
 	}
 }
