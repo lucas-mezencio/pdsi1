@@ -148,12 +148,12 @@ func main() {
 		}
 	}()
 
-	userRepo := database.NewUserRepository(db)
-	doctorRepo := database.NewDoctorRepository(db)
-	prescriptionRepo := database.NewPrescriptionRepository(db)
-	doseRecordRepo := database.NewDoseRecordRepository(db)
+	userRepo := database.NewUserRepository(db, encryptionKey)
+	doctorRepo := database.NewDoctorRepository(db, encryptionKey)
+	prescriptionRepo := database.NewPrescriptionRepository(db, encryptionKey)
+	doseRecordRepo := database.NewDoseRecordRepository(db, encryptionKey)
 	invitationRepo := database.NewInvitationRepository(db)
-	eventStore := database.NewNotificationEventStore(db)
+	eventStore := database.NewNotificationEventStore(db, encryptionKey)
 
 	var authProvider commands.AuthenticationProvider
 	firebaseAuthService, err := firebaseauth.NewService(ctx, appConfig.FirebaseCredentialsFile, appConfig.FirebaseWebAPIKey)

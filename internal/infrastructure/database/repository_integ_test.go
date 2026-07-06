@@ -11,6 +11,12 @@ import (
 	"github.com.br/lucas-mezencio/pdsi1/tests/testcontainers"
 )
 
+// testEncryptionKey is the dummy pgcrypto master key used by all
+// integration tests in this package. Real environments set
+// DB_ENCRYPTION_KEY via env; tests use this constant so the key never
+// leaves the test process.
+const testEncryptionKey = "test-encryption-key-do-not-use-in-prod-32b"
+
 func openTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
@@ -31,7 +37,7 @@ func openTestDB(t *testing.T) *sql.DB {
 
 func TestUserRepository_CRUD(t *testing.T) {
 	db := openTestDB(t)
-	repo := NewUserRepository(db)
+	repo := NewUserRepository(db, testEncryptionKey)
 
 	ctx := context.Background()
 	entity, err := user.NewUser("Alice", "alice@example.com", "+100000000", "52998224725", "token", user.RoleElderly)
@@ -96,7 +102,7 @@ func TestUserRepository_CRUD(t *testing.T) {
 
 func TestDoctorRepository_CRUD(t *testing.T) {
 	db := openTestDB(t)
-	repo := NewDoctorRepository(db)
+	repo := NewDoctorRepository(db, testEncryptionKey)
 
 	ctx := context.Background()
 	entity, err := doctor.NewDoctor("Dr. Who", "who@example.com", "999", "Time", "LIC-1")
@@ -161,9 +167,9 @@ func TestDoctorRepository_CRUD(t *testing.T) {
 
 func TestPrescriptionRepository_CRUD(t *testing.T) {
 	db := openTestDB(t)
-	userRepo := NewUserRepository(db)
-	doctorRepo := NewDoctorRepository(db)
-	repo := NewPrescriptionRepository(db)
+	userRepo := NewUserRepository(db, testEncryptionKey)
+	doctorRepo := NewDoctorRepository(db, testEncryptionKey)
+	repo := NewPrescriptionRepository(db, testEncryptionKey)
 
 	ctx := context.Background()
 	usr, err := user.NewUser("Alice", "alice@example.com", "+100000000", "52998224725", "token", user.RoleElderly)
