@@ -83,9 +83,15 @@ func main() {
 	setupLogger(*appConfig)
 	slog.Info("logger initialized", "format", appConfig.LogFormat, "level", appConfig.LogLevel)
 
+	if appConfig.DBEncryptionKey == "" {
+		slog.Error("DB_ENCRYPTION_KEY is required for LGPD column-level encryption")
+		os.Exit(1)
+	}
+
 	addr := appConfig.HTTPAddr
 	dsn := appConfig.DatabaseURL
 	redisAddr := appConfig.RedisAddr
+	encryptionKey := appConfig.DBEncryptionKey
 
 	db, err := database.NewPostgresDB(ctx, dsn)
 	if err != nil {
