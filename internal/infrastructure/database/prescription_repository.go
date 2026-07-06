@@ -10,13 +10,19 @@ import (
 )
 
 // PrescriptionRepository implements prescription.Repository using PostgreSQL.
+//
+// Medicament name and dosage are stored encrypted with pgcrypto
+// (pgp_sym_encrypt / pgp_sym_decrypt) using the master key passed to
+// NewPrescriptionRepository.
 type PrescriptionRepository struct {
-	db *sql.DB
+	db  *sql.DB
+	key string
 }
 
 // NewPrescriptionRepository creates a new PrescriptionRepository.
-func NewPrescriptionRepository(db *sql.DB) *PrescriptionRepository {
-	return &PrescriptionRepository{db: db}
+// key is the pgcrypto symmetric master key (DB_ENCRYPTION_KEY).
+func NewPrescriptionRepository(db *sql.DB, key string) *PrescriptionRepository {
+	return &PrescriptionRepository{db: db, key: key}
 }
 
 // Save creates or updates a prescription and its medicaments.
@@ -189,7 +195,7 @@ func (r *PrescriptionRepository) replaceMedicaments(ctx context.Context, tx *sql
 
 	insertQuery := `
 		INSERT INTO medicaments (prescription_id, name, dosage, frequency, times, doses)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		VALUES ($1, pgp_sym_encrypt($2, $7), pgp_sym_encrypt($3, $7), $4, $5, $6)
 	`
 
 	for _, m := range entity.Medicaments {
@@ -200,6 +206,7 @@ func (r *PrescriptionRepository) replaceMedicaments(ctx context.Context, tx *sql
 			m.Frequency,
 			pq.Array(m.Times),
 			m.Doses,
+			r.key,
 		); err != nil {
 			return err
 		}
@@ -210,13 +217,16 @@ func (r *PrescriptionRepository) replaceMedicaments(ctx context.Context, tx *sql
 
 func (r *PrescriptionRepository) findMedicaments(ctx context.Context, prescriptionID string) ([]prescription.Medicament, error) {
 	query := `
-		SELECT name, dosage, frequency, times, doses
+		SELECT
+			pgp_sym_decrypt(name,   $2) AS name,
+			pgp_sym_decrypt(dosage, $2) AS dosage,
+			frequency, times, doses
 		FROM medicaments
 		WHERE prescription_id = $1
 		ORDER BY id ASC
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, prescriptionID)
+	rows, err := r.db.QueryContext(ctx, query, prescriptionID, r.key)
 	if err != nil {
 		return nil, err
 	}

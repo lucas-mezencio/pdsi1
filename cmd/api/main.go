@@ -83,9 +83,15 @@ func main() {
 	setupLogger(*appConfig)
 	slog.Info("logger initialized", "format", appConfig.LogFormat, "level", appConfig.LogLevel)
 
+	if appConfig.DBEncryptionKey == "" {
+		slog.Error("DB_ENCRYPTION_KEY is required for LGPD column-level encryption")
+		os.Exit(1)
+	}
+
 	addr := appConfig.HTTPAddr
 	dsn := appConfig.DatabaseURL
 	redisAddr := appConfig.RedisAddr
+	encryptionKey := appConfig.DBEncryptionKey
 
 	db, err := database.NewPostgresDB(ctx, dsn)
 	if err != nil {
@@ -142,12 +148,12 @@ func main() {
 		}
 	}()
 
-	userRepo := database.NewUserRepository(db)
-	doctorRepo := database.NewDoctorRepository(db)
-	prescriptionRepo := database.NewPrescriptionRepository(db)
-	doseRecordRepo := database.NewDoseRecordRepository(db)
+	userRepo := database.NewUserRepository(db, encryptionKey)
+	doctorRepo := database.NewDoctorRepository(db, encryptionKey)
+	prescriptionRepo := database.NewPrescriptionRepository(db, encryptionKey)
+	doseRecordRepo := database.NewDoseRecordRepository(db, encryptionKey)
 	invitationRepo := database.NewInvitationRepository(db)
-	eventStore := database.NewNotificationEventStore(db)
+	eventStore := database.NewNotificationEventStore(db, encryptionKey)
 
 	var authProvider commands.AuthenticationProvider
 	firebaseAuthService, err := firebaseauth.NewService(ctx, appConfig.FirebaseCredentialsFile, appConfig.FirebaseWebAPIKey)

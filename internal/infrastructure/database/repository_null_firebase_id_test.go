@@ -10,7 +10,7 @@ import (
 
 func TestUserRepository_Save_EmptyFirebaseIDDoesNotCollide(t *testing.T) {
 	db := openTestDB(t)
-	repo := NewUserRepository(db)
+	repo := NewUserRepository(db, testEncryptionKey)
 	ctx := context.Background()
 
 	first, err := user.NewUser("Alice", "alice@example.com", "+100000000", "52998224725", "token", user.RoleElderly)
@@ -41,7 +41,7 @@ func TestUserRepository_Save_EmptyFirebaseIDDoesNotCollide(t *testing.T) {
 
 func TestDoctorRepository_Save_EmptyFirebaseIDDoesNotCollide(t *testing.T) {
 	db := openTestDB(t)
-	repo := NewDoctorRepository(db)
+	repo := NewDoctorRepository(db, testEncryptionKey)
 	ctx := context.Background()
 
 	first, err := doctor.NewDoctor("Dr. Who", "who@example.com", "999", "Time", "LIC-1")

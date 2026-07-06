@@ -11,6 +11,7 @@ import (
 // Config holds application configuration values.
 type Config struct {
 	DatabaseURL             string
+	DBEncryptionKey         string
 	HTTPAddr                string
 	RedisAddr               string
 	NotifierMode            string
@@ -38,6 +39,7 @@ func Load() (*Config, error) {
 
 	return &Config{
 		DatabaseURL:             envString("DATABASE_URL", defaultDSN),
+		DBEncryptionKey:         envString("DB_ENCRYPTION_KEY", ""),
 		HTTPAddr:                envString("HTTP_ADDR", defaultAddr),
 		RedisAddr:               envString("REDIS_ADDR", defaultRedisAddr),
 		NotifierMode:            envString("NOTIFIER_MODE", defaultNotifierMode),
