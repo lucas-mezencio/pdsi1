@@ -51,7 +51,7 @@ func TestDoctorAuthCommandHandler_Register_LicenseAlreadyInUse(t *testing.T) {
 		findByEmailFn: func(ctx context.Context, email string) (*doctor.Doctor, error) {
 			return nil, doctor.ErrDoctorNotFound
 		},
-		findByLicenseFn: func(ctx context.Context, license string) (*doctor.Doctor, error) {
+		findByLicenseNumberFn: func(ctx context.Context, license string) (*doctor.Doctor, error) {
 			return &doctor.Doctor{ID: "doc-1", LicenseNumber: license}, nil
 		},
 	}

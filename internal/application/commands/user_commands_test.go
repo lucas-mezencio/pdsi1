@@ -96,13 +96,13 @@ func TestUserCommandHandler_Create(t *testing.T) {
 		return nil
 	}
 
-	handler := NewUserCommandHandler(repo)
+	handler := NewUserCommandHandler(repo, &stubAuthProvider{})
 
 	created, err := handler.Create(context.Background(), CreateUserCommand{
-		Name:          "Alice",
-		Email:         "alice@example.com",
-		Phone:         "+100000000",
-		FirebaseToken: "token",
+		Name:     "Alice",
+		Email:    "alice@example.com",
+		Phone:    "+100000000",
+		Password: "S3cretP@ss",
 	})
 
 	if err != nil {
@@ -123,7 +123,7 @@ func TestUserCommandHandler_Create(t *testing.T) {
 }
 
 func TestUserCommandHandler_Update_InvalidInput(t *testing.T) {
-	handler := NewUserCommandHandler(&mockUserRepo{})
+	handler := NewUserCommandHandler(&mockUserRepo{}, &stubAuthProvider{})
 
 	_, err := handler.Update(context.Background(), UpdateUserCommand{})
 	if !errors.Is(err, application.ErrInvalidInput) {
@@ -138,7 +138,7 @@ func TestUserCommandHandler_Update_NotFound(t *testing.T) {
 		},
 	}
 
-	handler := NewUserCommandHandler(repo)
+	handler := NewUserCommandHandler(repo, &stubAuthProvider{})
 	_, err := handler.Update(context.Background(), UpdateUserCommand{ID: "missing"})
 	if !errors.Is(err, application.ErrUserNotFound) {
 		t.Fatalf("expected user not found error, got %v", err)
@@ -159,7 +159,7 @@ func TestUserCommandHandler_Update_Success(t *testing.T) {
 		return nil
 	}
 
-	handler := NewUserCommandHandler(repo)
+	handler := NewUserCommandHandler(repo, &stubAuthProvider{})
 	updated, err := handler.Update(context.Background(), UpdateUserCommand{
 		ID:    "user-1",
 		Name:  "New",
@@ -191,7 +191,7 @@ func TestUserCommandHandler_UpdateFirebaseToken(t *testing.T) {
 		return nil
 	}
 
-	handler := NewUserCommandHandler(repo)
+	handler := NewUserCommandHandler(repo, &stubAuthProvider{})
 	updated, err := handler.UpdateFirebaseToken(context.Background(), UpdateUserFirebaseTokenCommand{
 		ID:            "user-1",
 		FirebaseToken: "new-token",
@@ -216,7 +216,7 @@ func TestUserCommandHandler_ToggleNotifications(t *testing.T) {
 		},
 	}
 
-	handler := NewUserCommandHandler(repo)
+	handler := NewUserCommandHandler(repo, &stubAuthProvider{})
 	updated, err := handler.ToggleNotifications(context.Background(), ToggleUserNotificationsCommand{
 		ID:      "user-1",
 		Enabled: false,
@@ -242,7 +242,7 @@ func TestUserCommandHandler_Delete(t *testing.T) {
 		},
 	}
 
-	handler := NewUserCommandHandler(repo)
+	handler := NewUserCommandHandler(repo, &stubAuthProvider{})
 	if err := handler.Delete(context.Background(), DeleteUserCommand{ID: "user-1"}); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

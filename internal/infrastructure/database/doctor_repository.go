@@ -38,7 +38,7 @@ func (r *DoctorRepository) Save(ctx context.Context, entity *doctor.Doctor) erro
 		entity.Name,
 		entity.Email,
 		entity.Phone,
-		entity.FirebaseID,
+		sql.NullString{String: entity.FirebaseID, Valid: entity.FirebaseID != ""},
 		entity.Specialty,
 		entity.LicenseNumber,
 		entity.CreatedAt,

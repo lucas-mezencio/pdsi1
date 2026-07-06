@@ -176,10 +176,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	userCommands := commands.NewUserCommandHandler(userRepo)
+	userCommands := commands.NewUserCommandHandler(userRepo, authProvider)
 	authCommands := commands.NewAuthCommandHandler(userRepo, authProvider)
 	userQueries := queries.NewUserQueryHandler(userRepo)
-	doctorCommands := commands.NewDoctorCommandHandler(doctorRepo)
+	doctorCommands := commands.NewDoctorCommandHandler(doctorRepo, authProvider)
 	doctorQueries := queries.NewDoctorQueryHandler(doctorRepo)
 	prescriptionCommands := commands.NewPrescriptionCommandHandler(prescriptionRepo, userRepo, doctorRepo, schedulerAdapter)
 	prescriptionQueries := queries.NewPrescriptionQueryHandler(prescriptionRepo)

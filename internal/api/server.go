@@ -11,6 +11,7 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	gen "github.com.br/lucas-mezencio/pdsi1/internal/api/gen"
+	"github.com.br/lucas-mezencio/pdsi1/internal/api/dto"
 	"github.com.br/lucas-mezencio/pdsi1/internal/application"
 	"github.com.br/lucas-mezencio/pdsi1/internal/application/commands"
 	"github.com.br/lucas-mezencio/pdsi1/internal/application/queries"
@@ -61,21 +62,21 @@ func (s *Server) ListUsers(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to list users", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, items)
+	writeJSON(w, http.StatusOK, dto.UserResponsesFromDomain(items))
 }
 
 func (s *Server) CreateUser(w http.ResponseWriter, r *http.Request) {
-	// Custom struct to accept the optional `role` and `cpf` fields alongside generated schema fields.
+	// firebase_id / firebase_token are NEVER accepted as input. The Firebase
+	// account is created server-side via AuthenticationProvider.
 	var body struct {
-		Name          string `json:"name"`
-		Email         string `json:"email"`
-		Phone         string `json:"phone"`
-		CPF           string `json:"cpf"`
-		FirebaseID    string `json:"firebase_id"`
-		FirebaseToken string `json:"firebase_token"`
-		Role          string `json:"role"` // "ELDERLY" | "CAREGIVER" (optional, defaults to "ELDERLY")
+		Name     string `json:"name"`
+		Email    string `json:"email"`
+		Phone    string `json:"phone"`
+		CPF      string `json:"cpf"`
+		Password string `json:"password"`
+		Role     string `json:"role"` // "ELDERLY" | "CAREGIVER" (optional, defaults to "ELDERLY")
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request", err.Error())
 		return
 	}
@@ -86,13 +87,12 @@ func (s *Server) CreateUser(w http.ResponseWriter, r *http.Request) {
 	)
 
 	created, err := s.userCommands.Create(r.Context(), commands.CreateUserCommand{
-		Name:          body.Name,
-		Email:         body.Email,
-		Phone:         body.Phone,
-		CPF:           body.CPF,
-		FirebaseID:    body.FirebaseID,
-		FirebaseToken: body.FirebaseToken,
-		Role:          body.Role,
+		Name:     body.Name,
+		Email:    body.Email,
+		Phone:    body.Phone,
+		CPF:      body.CPF,
+		Password: body.Password,
+		Role:     body.Role,
 	})
 	if err != nil {
 		writeCommandError(w, err)
@@ -100,7 +100,7 @@ func (s *Server) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slog.DebugContext(r.Context(), "user created", "user_id", created.ID)
-	writeJSON(w, http.StatusCreated, created)
+	writeJSON(w, http.StatusCreated, dto.UserResponseFromDomain(created))
 }
 
 func (s *Server) GetUserById(w http.ResponseWriter, r *http.Request, userId gen.UserId) {
@@ -109,7 +109,7 @@ func (s *Server) GetUserById(w http.ResponseWriter, r *http.Request, userId gen.
 		writeQueryError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, entity)
+	writeJSON(w, http.StatusOK, dto.UserResponseFromDomain(entity))
 }
 
 func (s *Server) UpdateUser(w http.ResponseWriter, r *http.Request, userId gen.UserId) {
@@ -121,7 +121,7 @@ func (s *Server) UpdateUser(w http.ResponseWriter, r *http.Request, userId gen.U
 		Phone string `json:"phone"`
 		CPF   string `json:"cpf"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request", err.Error())
 		return
 	}
@@ -190,11 +190,20 @@ func (s *Server) ListDoctors(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to list doctors", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, items)
+	writeJSON(w, http.StatusOK, dto.DoctorResponsesFromDomain(items))
 }
 
 func (s *Server) CreateDoctor(w http.ResponseWriter, r *http.Request) {
-	var body gen.CreateDoctorRequest
+	// firebase_id is NEVER accepted as input. The Firebase account is created
+	// server-side via AuthenticationProvider.
+	var body struct {
+		Name          string `json:"name"`
+		Email         string `json:"email"`
+		Phone         string `json:"phone"`
+		Password      string `json:"password"`
+		Specialty     string `json:"specialty"`
+		LicenseNumber string `json:"license_number"`
+	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request", err.Error())
 		return
@@ -202,16 +211,17 @@ func (s *Server) CreateDoctor(w http.ResponseWriter, r *http.Request) {
 
 	created, err := s.doctorCommands.Create(r.Context(), commands.CreateDoctorCommand{
 		Name:          body.Name,
-		Email:         string(body.Email),
+		Email:         body.Email,
 		Phone:         body.Phone,
-		Specialty:     derefString(body.Specialty),
+		Password:      body.Password,
+		Specialty:     body.Specialty,
 		LicenseNumber: body.LicenseNumber,
 	})
 	if err != nil {
 		writeCommandError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, created)
+	writeJSON(w, http.StatusCreated, dto.DoctorResponseFromDomain(created))
 }
 
 func (s *Server) GetDoctorById(w http.ResponseWriter, r *http.Request, doctorId gen.DoctorId) {
@@ -220,7 +230,7 @@ func (s *Server) GetDoctorById(w http.ResponseWriter, r *http.Request, doctorId 
 		writeQueryError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, entity)
+	writeJSON(w, http.StatusOK, dto.DoctorResponseFromDomain(entity))
 }
 
 func (s *Server) UpdateDoctor(w http.ResponseWriter, r *http.Request, doctorId gen.DoctorId) {
@@ -388,7 +398,7 @@ func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
 		Password string `json:"password"`
 		Role     string `json:"role"` // optional, defaults to "ELDERLY"
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request", err.Error())
 		return
 	}
