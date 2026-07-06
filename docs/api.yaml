@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Medication Notification System API
+  title: CareConnect API
   description: |
     API for managing medication prescriptions and sending notifications to elderly users.
     This system helps users and caretakers manage medication schedules through timely notifications.
@@ -12,7 +12,7 @@ info:
 servers:
   - url: http://localhost:8080/api/v1
     description: Local development server
-  - url: https://api.mednotify.com/v1
+  - url: https://careconnect.lmezencio.dev/api/v1
     description: Production server
 
 tags:
