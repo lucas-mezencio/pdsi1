@@ -23,7 +23,11 @@ type User struct {
 	Phone                string    `json:"phone"`
 	CPF                  string    `json:"cpf,omitempty"`
 	FirebaseID           string    `json:"firebase_id,omitempty"`
-	FirebaseToken        string    `json:"firebase_token"`
+	// FirebaseToken is the FCM device token used by the scheduler worker
+	// to push medication reminders. It is server-internal and must not
+	// leak through HTTP responses; omitempty keeps it out of the JSON
+	// when it has been deliberately cleared (e.g. by LGPD strip).
+	FirebaseToken        string    `json:"firebase_token,omitempty"`
 	NotificationsEnabled bool      `json:"notifications_enabled"`
 	Role                 Role      `json:"role"`
 	CreatedAt            time.Time `json:"created_at"`

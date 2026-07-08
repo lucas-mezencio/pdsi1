@@ -149,6 +149,7 @@ func newBugReproServer() (*Server, *stubUserRepoForBugRepro, *stubDoctorRepoForB
 		userQueries:    queries.NewUserQueryHandler(userRepo),
 		doctorCommands: commands.NewDoctorCommandHandler(doctorRepo, auth),
 		doctorQueries:  queries.NewDoctorQueryHandler(doctorRepo),
+		authCommands:   commands.NewAuthCommandHandler(userRepo, auth),
 	}
 	return server, userRepo, doctorRepo
 }

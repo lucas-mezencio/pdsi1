@@ -137,7 +137,7 @@ func (s *Server) UpdateUser(w http.ResponseWriter, r *http.Request, userId gen.U
 		writeCommandError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, updated)
+	writeJSON(w, http.StatusOK, dto.UserResponseFromDomain(updated))
 }
 
 func (s *Server) DeleteUser(w http.ResponseWriter, r *http.Request, userId gen.UserId) {
@@ -163,7 +163,7 @@ func (s *Server) UpdateFirebaseToken(w http.ResponseWriter, r *http.Request, use
 		writeCommandError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, updated)
+	writeJSON(w, http.StatusOK, dto.UserResponseFromDomain(updated))
 }
 
 func (s *Server) ToggleNotifications(w http.ResponseWriter, r *http.Request, userId gen.UserId) {
@@ -181,7 +181,7 @@ func (s *Server) ToggleNotifications(w http.ResponseWriter, r *http.Request, use
 		writeCommandError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, updated)
+	writeJSON(w, http.StatusOK, dto.UserResponseFromDomain(updated))
 }
 
 func (s *Server) ListDoctors(w http.ResponseWriter, r *http.Request) {
@@ -415,7 +415,7 @@ func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
 		writeCommandError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, user)
+	writeJSON(w, http.StatusCreated, dto.UserResponseFromDomain(user))
 }
 
 func (s *Server) Logout(w http.ResponseWriter, r *http.Request) {
@@ -490,10 +490,6 @@ func userToGen(u *user.User) gen.User {
 	}
 	if id, err := uuid.Parse(u.ID); err == nil {
 		genUser.Id = gen.UserId(id)
-	}
-	if u.FirebaseToken != "" {
-		token := u.FirebaseToken
-		genUser.FirebaseToken = &token
 	}
 	return genUser
 }

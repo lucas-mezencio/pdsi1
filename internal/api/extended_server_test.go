@@ -240,3 +240,56 @@ func TestExtendedServer_LGPDDataExport_OnlyReturnsCallersOwnData(t *testing.T) {
 		t.Fatalf("expected caller-only data export, got user %+v", export.User)
 	}
 }
+
+// firebase_token is the FCM device token used by the scheduler worker to
+// push medication reminders. The LGPD self-export endpoint must not
+// surface it on the wire even though the caller is exporting their own
+// data: it stays server-internal.
+func TestExtendedServer_LGPDDataExport_NeverReturnsFirebaseToken(t *testing.T) {
+	now := time.Now()
+	usr := &user.User{
+		ID:            "user-1",
+		Name:          "Maria",
+		Email:         "maria@example.com",
+		FirebaseToken: "secret-fcm-token-must-not-leak",
+	}
+	rxs := []*prescription.Prescription{{
+		ID: "rx-1", UserID: "user-1", Active: true,
+		Medicaments: []prescription.Medicament{{
+			Name: "AAS", Dosage: "100mg", Frequency: "24:00",
+			Times: []string{"08:00"}, Doses: 30,
+		}},
+		CreatedAt: now, UpdatedAt: now,
+	}}
+	doses := []*prescription.DoseRecord{{
+		ID: "dose-1", PrescriptionID: "rx-1", UserID: "user-1",
+		ScheduledAt: now, Status: prescription.DoseStatusPending,
+	}}
+	ext := newExtendedServerWithStubExport(usr, rxs, doses)
+
+	rr := callWithCaller(t, ext, "user-1")
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	for _, path := range []string{"user.firebase_token"} {
+		// Walk the path; a firebase_token key at any depth on a User-shaped
+		// object is a leak.
+		node := raw
+		for _, seg := range []string{"user"} {
+			child, ok := node[seg].(map[string]any)
+			if !ok {
+				continue
+			}
+			node = child
+		}
+		_ = path
+		if _, ok := node["firebase_token"]; ok {
+			t.Fatalf("firebase_token must NOT appear in LGPD data-export body, got: %s", rr.Body.String())
+		}
+	}
+}
