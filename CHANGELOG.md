@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Production 500 on `POST /api/v1/users` (`pq: duplicate key value violates
+  unique constraint "idx_users_firebase_id_unique"`): the partial unique
+  index created by migration 0004 treated the empty firebase_id stored
+  by the pre-fix code path as a distinct value, so two consecutive creates
+  collided. The indexes were redundant (Firebase Auth guarantees UID
+  uniqueness upstream) and have been removed by migration `0007` so
+  they cannot trip up future code paths that forget the `sql.NullString`
+  wrapping. `idx_users_cpf_unique` is kept on purpose — it enforces a
+  real business rule.
+- `firebase_token` (the FCM device token used by the scheduler worker
+  to push medication reminders) is server-internal. It must never be
+  an input or a response field.
+  - Request side: `POST /api/v1/users`, `POST /api/v1/doctors`,
+    `POST /api/v1/auth/register` now reject unknown fields with
+    `400 invalid request` (already at HEAD for `firebase_id`; this
+    extends coverage to `firebase_token` and the broader "unknown
+    field" policy via `DisallowUnknownFields`).
+  - Response side: `firebase_token` is no longer returned by any of
+    `POST /auth/register`, `POST /auth/login`, `PUT /users/{id}`,
+    `PATCH /users/{id}/firebase-token`, `POST /users/{id}/notifications`,
+    or `GET /users/me/data-export`. The OpenAPI `User` schema and the
+    `CreateUserRequest` schema no longer mention `firebase_token`; the
+    generated `gen.User` and `gen.CreateUserRequest` types reflect that.
+  - `user.User.FirebaseToken` (domain) gains `omitempty` as defence in
+    depth against future serialization paths.
+
 ## [0.3.1] - 2026-06-21
 
 ### Fixed
