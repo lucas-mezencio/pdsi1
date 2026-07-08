@@ -9,12 +9,114 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-// AuthResponse defines model for AuthResponse.
+const (
+	DemoSecretScopes  demoSecretContextKey  = "DemoSecret.Scopes"
+	FirebaseJWTScopes firebaseJWTContextKey = "FirebaseJWT.Scopes"
+)
+
+// Defines values for CaregiverInvitationStatus.
+const (
+	CaregiverInvitationStatusACCEPTED CaregiverInvitationStatus = "ACCEPTED"
+	CaregiverInvitationStatusPENDING  CaregiverInvitationStatus = "PENDING"
+	CaregiverInvitationStatusREJECTED CaregiverInvitationStatus = "REJECTED"
+)
+
+// Valid indicates whether the value is a known member of the CaregiverInvitationStatus enum.
+func (e CaregiverInvitationStatus) Valid() bool {
+	switch e {
+	case CaregiverInvitationStatusACCEPTED:
+		return true
+	case CaregiverInvitationStatusPENDING:
+		return true
+	case CaregiverInvitationStatusREJECTED:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateUserRequestRole.
+const (
+	CreateUserRequestRoleCAREGIVER CreateUserRequestRole = "CAREGIVER"
+	CreateUserRequestRoleELDERLY   CreateUserRequestRole = "ELDERLY"
+)
+
+// Valid indicates whether the value is a known member of the CreateUserRequestRole enum.
+func (e CreateUserRequestRole) Valid() bool {
+	switch e {
+	case CreateUserRequestRoleCAREGIVER:
+		return true
+	case CreateUserRequestRoleELDERLY:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DoseRecordStatus.
+const (
+	DoseRecordStatusMISSED  DoseRecordStatus = "MISSED"
+	DoseRecordStatusPENDING DoseRecordStatus = "PENDING"
+	DoseRecordStatusTAKEN   DoseRecordStatus = "TAKEN"
+)
+
+// Valid indicates whether the value is a known member of the DoseRecordStatus enum.
+func (e DoseRecordStatus) Valid() bool {
+	switch e {
+	case DoseRecordStatusMISSED:
+		return true
+	case DoseRecordStatusPENDING:
+		return true
+	case DoseRecordStatusTAKEN:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RegisterRequestRole.
+const (
+	RegisterRequestRoleCAREGIVER RegisterRequestRole = "CAREGIVER"
+	RegisterRequestRoleELDERLY   RegisterRequestRole = "ELDERLY"
+)
+
+// Valid indicates whether the value is a known member of the RegisterRequestRole enum.
+func (e RegisterRequestRole) Valid() bool {
+	switch e {
+	case RegisterRequestRoleCAREGIVER:
+		return true
+	case RegisterRequestRoleELDERLY:
+		return true
+	default:
+		return false
+	}
+}
+
+// AuthResponse Authentication response returned by `/auth/login` and
+// `/auth/login/doctor`. The `token` is a Firebase ID token (JWT) that
+// must be sent as `Authorization: Bearer <token>` on subsequent
+// authenticated requests. It is **not** the same as the `firebase_token`
+// field on the user — that one is the FCM device token used for push
+// notifications and is unrelated to API authentication.
 type AuthResponse struct {
-	// Token JWT access token
+	// Token Firebase ID token (JWT) to be used as bearer token
 	Token string `json:"token"`
 	User  User   `json:"user"`
 }
+
+// CaregiverInvitation defines model for CaregiverInvitation.
+type CaregiverInvitation struct {
+	CaregiverId *openapi_types.UUID        `json:"caregiver_id,omitempty"`
+	CreatedAt   *time.Time                 `json:"created_at,omitempty"`
+	ElderlyId   *openapi_types.UUID        `json:"elderly_id,omitempty"`
+	Id          *openapi_types.UUID        `json:"id,omitempty"`
+	Status      *CaregiverInvitationStatus `json:"status,omitempty"`
+	Token       *string                    `json:"token,omitempty"`
+	UpdatedAt   *time.Time                 `json:"updated_at,omitempty"`
+}
+
+// CaregiverInvitationStatus defines model for CaregiverInvitation.Status.
+type CaregiverInvitationStatus string
 
 // CreateDoctorRequest defines model for CreateDoctorRequest.
 type CreateDoctorRequest struct {
@@ -48,18 +150,31 @@ type CreatePrescriptionRequest struct {
 
 // CreateUserRequest defines model for CreateUserRequest.
 type CreateUserRequest struct {
+	// Cpf Brazilian CPF (Cadastro de Pessoa Física), digits-only.
+	// Optional; if provided, full checksum validation runs server-side.
+	Cpf *string `json:"cpf,omitempty"`
+
 	// Email User's email address
 	Email openapi_types.Email `json:"email"`
-
-	// FirebaseToken Firebase Cloud Messaging token
-	FirebaseToken string `json:"firebase_token"`
 
 	// Name User's full name
 	Name string `json:"name"`
 
+	// Password Plaintext password. The server uses it to create the Firebase
+	// Auth account (server-side via Admin SDK) and never stores it.
+	Password string `json:"password"`
+
 	// Phone User's phone number
 	Phone string `json:"phone"`
+
+	// Role User role. `ELDERLY` (the default) receives medication reminders;
+	// `CAREGIVER` is a caretaker linked to one or more elderly users.
+	Role *CreateUserRequestRole `json:"role,omitempty"`
 }
+
+// CreateUserRequestRole User role. `ELDERLY` (the default) receives medication reminders;
+// `CAREGIVER` is a caretaker linked to one or more elderly users.
+type CreateUserRequestRole string
 
 // Doctor defines model for Doctor.
 type Doctor struct {
@@ -87,6 +202,24 @@ type Doctor struct {
 	// UpdatedAt Last update timestamp
 	UpdatedAt time.Time `json:"updated_at"`
 }
+
+// DoseRecord A single scheduled dose and whether it was taken. Sensitive health
+// data — included in the LGPD data-export.
+type DoseRecord struct {
+	ConfirmedAt    *time.Time          `json:"confirmed_at,omitempty"`
+	CreatedAt      *time.Time          `json:"created_at,omitempty"`
+	Dosage         *string             `json:"dosage,omitempty"`
+	Id             *openapi_types.UUID `json:"id,omitempty"`
+	MedicamentName *string             `json:"medicament_name,omitempty"`
+	PrescriptionId *openapi_types.UUID `json:"prescription_id,omitempty"`
+	ScheduledAt    *time.Time          `json:"scheduled_at,omitempty"`
+	Status         *DoseRecordStatus   `json:"status,omitempty"`
+	UpdatedAt      *time.Time          `json:"updated_at,omitempty"`
+	UserId         *openapi_types.UUID `json:"user_id,omitempty"`
+}
+
+// DoseRecordStatus defines model for DoseRecord.Status.
+type DoseRecordStatus string
 
 // Error defines model for Error.
 type Error struct {
@@ -164,6 +297,12 @@ type Prescription struct {
 
 // RegisterRequest defines model for RegisterRequest.
 type RegisterRequest struct {
+	// Cpf Brazilian CPF (Cadastro de Pessoa Física) — 11 digits.
+	// Optional, but when present is validated using the official
+	// modulo-11 checksum and normalized to digits-only.
+	// Accepts formatted input such as "529.982.247-25".
+	Cpf *string `json:"cpf,omitempty"`
+
 	// Email User's email address
 	Email openapi_types.Email `json:"email"`
 
@@ -175,7 +314,13 @@ type RegisterRequest struct {
 
 	// Phone User's phone number
 	Phone string `json:"phone"`
+
+	// Role User role. Optional, defaults to "ELDERLY" if omitted or invalid.
+	Role *RegisterRequestRole `json:"role,omitempty"`
 }
+
+// RegisterRequestRole User role. Optional, defaults to "ELDERLY" if omitted or invalid.
+type RegisterRequestRole string
 
 // UpdateDoctorRequest defines model for UpdateDoctorRequest.
 type UpdateDoctorRequest struct {
@@ -212,14 +357,15 @@ type UpdateUserRequest struct {
 
 // User defines model for User.
 type User struct {
+	// Cpf Brazilian CPF (Cadastro de Pessoa Física), digits-only.
+	// May be empty if the user was registered without one.
+	Cpf *string `json:"cpf,omitempty"`
+
 	// CreatedAt User creation timestamp
 	CreatedAt time.Time `json:"created_at"`
 
 	// Email User's email address
 	Email openapi_types.Email `json:"email"`
-
-	// FirebaseToken Firebase Cloud Messaging token
-	FirebaseToken *string `json:"firebase_token,omitempty"`
 
 	// Id Unique user identifier
 	Id openapi_types.UUID `json:"id"`
@@ -235,6 +381,31 @@ type User struct {
 
 	// UpdatedAt Last update timestamp
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// UserDataExport Full LGPD/GDPR right-of-access export for a user. Contains every
+// category of personal data CareConnect holds about the caller,
+// including sensitive health data (prescriptions with their medicaments,
+// and dose records), linked caregivers/charges, and caregiver
+// invitations.
+type UserDataExport struct {
+	// Caregivers Users linked to the caller as caregivers (only populated when
+	// the caller is an elderly user).
+	Caregivers []User `json:"caregivers"`
+
+	// Charges Users the caller is a caregiver for (only populated when the
+	// caller has role=CAREGIVER).
+	Charges []User `json:"charges"`
+
+	// DoseRecords All dose records — sensitive health data.
+	DoseRecords []DoseRecord `json:"dose_records"`
+
+	// Invitations Caregiver invitations where the caller is elderly or caregiver.
+	Invitations []CaregiverInvitation `json:"invitations"`
+
+	// Prescriptions All prescriptions (including inactive) — sensitive health data.
+	Prescriptions []Prescription `json:"prescriptions"`
+	User          User           `json:"user"`
 }
 
 // DoctorId defines model for DoctorId.
@@ -258,6 +429,15 @@ type NotFound = Error
 // ServiceUnavailable defines model for ServiceUnavailable.
 type ServiceUnavailable = Error
 
+// Unauthorized defines model for Unauthorized.
+type Unauthorized = Error
+
+// demoSecretContextKey is the context key for DemoSecret security scheme
+type demoSecretContextKey string
+
+// firebaseJWTContextKey is the context key for FirebaseJWT security scheme
+type firebaseJWTContextKey string
+
 // ListPrescriptionsParams defines parameters for ListPrescriptions.
 type ListPrescriptionsParams struct {
 	// UserId Filter by user ID
@@ -272,7 +452,9 @@ type ListPrescriptionsParams struct {
 
 // UpdateFirebaseTokenJSONBody defines parameters for UpdateFirebaseToken.
 type UpdateFirebaseTokenJSONBody struct {
-	// FirebaseToken Firebase Cloud Messaging token
+	// FirebaseToken Firebase Cloud Messaging (FCM) device token used to deliver
+	// push notifications to this user's device. Not to be confused
+	// with the API auth/bearer token returned by `/auth/login`.
 	FirebaseToken string `json:"firebase_token"`
 }
 

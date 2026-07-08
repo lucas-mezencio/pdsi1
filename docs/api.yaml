@@ -770,14 +770,6 @@ components:
             Brazilian CPF (Cadastro de Pessoa Física), digits-only.
             May be empty if the user was registered without one.
           example: "52998224725"
-        firebase_token:
-          type: string
-          description: |
-            Firebase Cloud Messaging (FCM) device token used to deliver push
-            notifications to this user's device. This is **not** the API
-            auth/bearer token — the bearer token is returned by the login
-            endpoint in `AuthResponse.token`.
-          example: "fCM_token_abc123xyz"
         notifications_enabled:
           type: boolean
           description: Whether notifications are enabled for this user
@@ -815,15 +807,30 @@ components:
           type: string
           description: User's phone number
           example: "+1234567890"
-        firebase_token:
+        password:
           type: string
-          description: Firebase Cloud Messaging token
-          example: "fCM_token_abc123xyz"
+          format: password
+          description: |
+            Plaintext password. The server uses it to create the Firebase
+            Auth account (server-side via Admin SDK) and never stores it.
+          example: "S3cretP@ss"
+        cpf:
+          type: string
+          description: |
+            Brazilian CPF (Cadastro de Pessoa Física), digits-only.
+            Optional; if provided, full checksum validation runs server-side.
+          example: "52998224725"
+        role:
+          type: string
+          enum: [ELDERLY, CAREGIVER]
+          description: |
+            User role. `ELDERLY` (the default) receives medication reminders;
+            `CAREGIVER` is a caretaker linked to one or more elderly users.
       required:
         - name
         - email
         - phone
-        - firebase_token
+        - password
 
     UpdateUserRequest:
       type: object
