@@ -13,6 +13,12 @@ import (
 // data-subject access requests. It contains every category of personal data
 // CareConnect holds about the user, including sensitive health data
 // (prescriptions and dose records).
+//
+// FirebaseToken is intentionally NOT a field of the embedded *user.User
+// shapes here: it is the FCM device token the scheduler worker uses to
+// push medication reminders and is server-internal. The handler strips
+// it on every *user.User before assembling the response (see stripFirebase
+// Token and stripFirebaseTokenSlice).
 type UserDataExport struct {
 	User          *user.User                  `json:"user"`
 	Prescriptions []*prescription.Prescription `json:"prescriptions"`
@@ -20,6 +26,33 @@ type UserDataExport struct {
 	Caregivers    []*user.User                `json:"caregivers"` // users linked to caller as caregiver (when caller is elderly)
 	Charges       []*user.User                `json:"charges"`    // users caller is caregiver for
 	Invitations   []*user.CaregiverInvitation `json:"invitations"`
+}
+
+// stripFirebaseToken returns a shallow copy of u with FirebaseToken cleared.
+// firebase_token is the FCM device token used by the scheduler worker for
+// push delivery (see internal/infrastructure/scheduler/worker.go and
+// internal/infrastructure/notification/firebase_sender.go). It must never
+// leave the server; the LGPD self-export endpoint gives the caller a copy
+// of their own data, so we strip the token even though the caller owns the
+// underlying Firebase user.
+func stripFirebaseToken(u *user.User) *user.User {
+	if u == nil {
+		return nil
+	}
+	clone := *u
+	clone.FirebaseToken = ""
+	return &clone
+}
+
+func stripFirebaseTokenSlice(users []*user.User) []*user.User {
+	if users == nil {
+		return nil
+	}
+	out := make([]*user.User, 0, len(users))
+	for _, u := range users {
+		out = append(out, stripFirebaseToken(u))
+	}
+	return out
 }
 
 // LGPDQueryHandler assembles the full user data export (LGPD right of access).
@@ -93,11 +126,11 @@ func (h *LGPDQueryHandler) ExportForUser(ctx context.Context, userID string) (*U
 	invitations := append(byElderly, byCaregiver...)
 
 	return &UserDataExport{
-		User:          entity,
+		User:          stripFirebaseToken(entity),
 		Prescriptions: prescriptions,
 		DoseRecords:   doseRecords,
-		Caregivers:    caregivers,
-		Charges:       charges,
+		Caregivers:    stripFirebaseTokenSlice(caregivers),
+		Charges:       stripFirebaseTokenSlice(charges),
 		Invitations:   invitations,
 	}, nil
 }

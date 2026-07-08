@@ -203,3 +203,49 @@ func TestLGPDQueryHandler_ExportForUser_UserNotFound(t *testing.T) {
 		t.Fatalf("expected ErrUserNotFound, got %v", err)
 	}
 }
+
+// firebase_token is the FCM device token used by the scheduler worker to
+// push medication reminders (server-internal). The LGPD self-export
+// endpoint must NOT leak it on the User, Caregivers, or Charges slices:
+// a user exporting their own data must never see (or expose via the JSON
+// they download) a server-managed push-delivery token.
+func TestLGPDQueryHandler_ExportForUser_StripsFirebaseToken(t *testing.T) {
+	userRepo := &mockUserRepoForLGPD{
+		findByIDFn: func(ctx context.Context, id string) (*user.User, error) {
+			return &user.User{
+				ID: id, Name: "Maria", Email: "maria@example.com",
+				FirebaseToken: "secret-fcm-caller",
+			}, nil
+		},
+		findCaregiversFn: func(ctx context.Context, elderlyID string) ([]*user.User, error) {
+			return []*user.User{{
+				ID: "caregiver-1", Name: "João",
+				FirebaseToken: "secret-fcm-caregiver",
+			}}, nil
+		},
+		findChargesFn: func(ctx context.Context, caregiverID string) ([]*user.User, error) {
+			return []*user.User{{
+				ID: "charge-1", Name: "Ana",
+				FirebaseToken: "secret-fcm-charge",
+			}}, nil
+		},
+	}
+	handler := NewLGPDQueryHandler(userRepo, &mockPrescriptionRepo{}, &mockDoseRepoForLGPD{}, &mockInvitationRepoForLGPD{})
+	export, err := handler.ExportForUser(context.Background(), "user-1")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if export.User.FirebaseToken != "" {
+		t.Fatalf("export.User.FirebaseToken must be stripped, got %q", export.User.FirebaseToken)
+	}
+	for i, cg := range export.Caregivers {
+		if cg.FirebaseToken != "" {
+			t.Fatalf("export.Caregivers[%d].FirebaseToken must be stripped, got %q", i, cg.FirebaseToken)
+		}
+	}
+	for i, ch := range export.Charges {
+		if ch.FirebaseToken != "" {
+			t.Fatalf("export.Charges[%d].FirebaseToken must be stripped, got %q", i, ch.FirebaseToken)
+		}
+	}
+}
