@@ -901,6 +901,12 @@ components:
 
     CreateDoctorRequest:
       type: object
+      description: |
+        A doctor is a semantic entity that identifies who issued a
+        prescription. Doctors are local-only: this endpoint does NOT
+        create a Firebase Auth account, does NOT require a password,
+        and the resulting Doctor has no firebase_id. Doctors cannot
+        log in to the API.
       properties:
         name:
           type: string
