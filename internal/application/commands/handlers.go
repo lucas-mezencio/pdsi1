@@ -24,7 +24,7 @@ func NewHandlers(
 ) *Handlers {
 	return &Handlers{
 		Users:         NewUserCommandHandler(userRepo, authProvider),
-		Doctors:       NewDoctorCommandHandler(doctorRepo, authProvider),
+		Doctors:       NewDoctorCommandHandler(doctorRepo),
 		Prescriptions: NewPrescriptionCommandHandler(prescriptionRepo, userRepo, doctorRepo, scheduler),
 	}
 }

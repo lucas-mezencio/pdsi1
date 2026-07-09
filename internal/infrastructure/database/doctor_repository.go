@@ -113,39 +113,6 @@ func (r *DoctorRepository) FindByEmail(ctx context.Context, email string) (*doct
 	return &entity, nil
 }
 
-// FindByFirebaseID retrieves a doctor by firebase auth UID.
-func (r *DoctorRepository) FindByFirebaseID(ctx context.Context, firebaseID string) (*doctor.Doctor, error) {
-	query := `
-		SELECT id, name, email, phone, firebase_id, specialty, license_number, created_at, updated_at
-		FROM doctors
-		WHERE firebase_id = $1
-	`
-
-	var entity doctor.Doctor
-	var firebaseIDValue sql.NullString
-	if err := r.db.QueryRowContext(ctx, query, firebaseID).Scan(
-		&entity.ID,
-		&entity.Name,
-		&entity.Email,
-		&entity.Phone,
-		&firebaseIDValue,
-		&entity.Specialty,
-		&entity.LicenseNumber,
-		&entity.CreatedAt,
-		&entity.UpdatedAt,
-	); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, doctor.ErrDoctorNotFound
-		}
-		return nil, err
-	}
-	if firebaseIDValue.Valid {
-		entity.FirebaseID = firebaseIDValue.String
-	}
-
-	return &entity, nil
-}
-
 // FindByLicenseNumber retrieves a doctor by license number.
 func (r *DoctorRepository) FindByLicenseNumber(ctx context.Context, licenseNumber string) (*doctor.Doctor, error) {
 	query := `

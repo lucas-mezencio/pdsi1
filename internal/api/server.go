@@ -194,13 +194,13 @@ func (s *Server) ListDoctors(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) CreateDoctor(w http.ResponseWriter, r *http.Request) {
-	// firebase_id is NEVER accepted as input. The Firebase account is created
-	// server-side via AuthenticationProvider.
+	// firebase_id and password are NEVER accepted as input. Doctor is a
+	// semantic entity that identifies who issued a prescription; it is
+	// not an authenticatable principal.
 	var body struct {
 		Name          string `json:"name"`
 		Email         string `json:"email"`
 		Phone         string `json:"phone"`
-		Password      string `json:"password"`
 		Specialty     string `json:"specialty"`
 		LicenseNumber string `json:"license_number"`
 	}
@@ -213,7 +213,6 @@ func (s *Server) CreateDoctor(w http.ResponseWriter, r *http.Request) {
 		Name:          body.Name,
 		Email:         body.Email,
 		Phone:         body.Phone,
-		Password:      body.Password,
 		Specialty:     body.Specialty,
 		LicenseNumber: body.LicenseNumber,
 	})

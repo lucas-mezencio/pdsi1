@@ -9,7 +9,10 @@ import (
 	"github.com.br/lucas-mezencio/pdsi1/internal/domain/doctor"
 )
 
-func TestDoctorCommandHandler_Create_AutoCreatesFirebaseUserAndLinks(t *testing.T) {
+// Doctor is purely local under the post-fix flow: no AuthenticationProvider
+// is consulted and no firebase_id is linked. These tests lock that contract.
+
+func TestDoctorCommandHandler_Create_SucceedsWithoutPasswordOrAuth(t *testing.T) {
 	repo := &mockDoctorRepo{}
 	var saved *doctor.Doctor
 	repo.saveFn = func(ctx context.Context, entity *doctor.Doctor) error {
@@ -17,14 +20,12 @@ func TestDoctorCommandHandler_Create_AutoCreatesFirebaseUserAndLinks(t *testing.
 		return nil
 	}
 
-	auth := &stubAuthProvider{createUID: "firebase-uid-doc-abc"}
-	handler := NewDoctorCommandHandler(repo, auth)
+	handler := NewDoctorCommandHandler(repo)
 
 	created, err := handler.Create(context.Background(), CreateDoctorCommand{
 		Name:          "Dr. Who",
 		Email:         "who@example.com",
 		Phone:         "+55119...",
-		Password:      "S3cretP@ss",
 		Specialty:     "Time",
 		LicenseNumber: "LIC-1",
 	})
@@ -32,14 +33,17 @@ func TestDoctorCommandHandler_Create_AutoCreatesFirebaseUserAndLinks(t *testing.
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if created.FirebaseID != "firebase-uid-doc-abc" {
-		t.Fatalf("expected firebase_id linked, got %q", created.FirebaseID)
+	if created == nil {
+		t.Fatal("expected doctor to be created")
 	}
-	if saved == nil || saved.FirebaseID != "firebase-uid-doc-abc" {
-		t.Fatalf("expected saved doctor to carry firebase_id, got %+v", saved)
+	if created.FirebaseID != "" {
+		t.Fatalf("expected no firebase_id (doctor is local), got %q", created.FirebaseID)
 	}
-	if auth.createCalls != 1 {
-		t.Fatalf("expected CreateUser called once, got %d", auth.createCalls)
+	if saved == nil {
+		t.Fatal("expected doctor to be saved")
+	}
+	if saved.FirebaseID != "" {
+		t.Fatalf("expected saved doctor to have no firebase_id, got %q", saved.FirebaseID)
 	}
 }
 
@@ -49,22 +53,19 @@ func TestDoctorCommandHandler_Create_DuplicateEmailRejected(t *testing.T) {
 			return &doctor.Doctor{Email: email}, nil
 		},
 	}
-	auth := &stubAuthProvider{}
-	handler := NewDoctorCommandHandler(repo, auth)
+
+	handler := NewDoctorCommandHandler(repo)
 
 	_, err := handler.Create(context.Background(), CreateDoctorCommand{
 		Name:          "Dr. Dup",
 		Email:         "dup@example.com",
 		Phone:         "+55119...",
-		Password:      "S3cretP@ss",
+		Specialty:     "Trauma",
 		LicenseNumber: "LIC-DUP",
 	})
 
 	if !errors.Is(err, application.ErrEmailAlreadyInUse) {
 		t.Fatalf("expected ErrEmailAlreadyInUse, got %v", err)
-	}
-	if auth.createCalls != 0 {
-		t.Fatalf("expected firebase NOT to be called, got %d", auth.createCalls)
 	}
 }
 
@@ -74,67 +75,82 @@ func TestDoctorCommandHandler_Create_DuplicateLicenseRejected(t *testing.T) {
 			return &doctor.Doctor{LicenseNumber: license}, nil
 		},
 	}
-	auth := &stubAuthProvider{}
-	handler := NewDoctorCommandHandler(repo, auth)
+
+	handler := NewDoctorCommandHandler(repo)
 
 	_, err := handler.Create(context.Background(), CreateDoctorCommand{
 		Name:          "Dr. Dup",
 		Email:         "dup@example.com",
 		Phone:         "+55119...",
-		Password:      "S3cretP@ss",
+		Specialty:     "Trauma",
 		LicenseNumber: "LIC-DUP",
 	})
 
 	if !errors.Is(err, application.ErrLicenseAlreadyInUse) {
 		t.Fatalf("expected ErrLicenseAlreadyInUse, got %v", err)
 	}
-	if auth.createCalls != 0 {
-		t.Fatalf("expected firebase NOT to be called, got %d", auth.createCalls)
-	}
 }
 
-func TestDoctorCommandHandler_Create_RepoFailureRollsBackFirebase(t *testing.T) {
+func TestDoctorCommandHandler_Create_RepoFailurePropagates(t *testing.T) {
 	repoErr := errors.New("db boom")
 	repo := &mockDoctorRepo{
 		saveFn: func(ctx context.Context, entity *doctor.Doctor) error {
 			return repoErr
 		},
 	}
-	auth := &stubAuthProvider{createUID: "firebase-uid-doc-rollback"}
-	handler := NewDoctorCommandHandler(repo, auth)
+
+	handler := NewDoctorCommandHandler(repo)
 
 	_, err := handler.Create(context.Background(), CreateDoctorCommand{
 		Name:          "Dr. X",
 		Email:         "x@example.com",
 		Phone:         "+55119...",
-		Password:      "S3cretP@ss",
+		Specialty:     "Trauma",
 		LicenseNumber: "LIC-X",
 	})
 
 	if !errors.Is(err, repoErr) {
 		t.Fatalf("expected db error to propagate, got %v", err)
 	}
-	if auth.deleteCalls != 1 || auth.deleteUID != "firebase-uid-doc-rollback" {
-		t.Fatalf("expected firebase user rolled back, got deleteCalls=%d deleteUID=%q", auth.deleteCalls, auth.deleteUID)
-	}
 }
 
-func TestDoctorCommandHandler_Create_MissingPasswordRejected(t *testing.T) {
+func TestDoctorCommandHandler_Create_MissingFieldsRejected(t *testing.T) {
 	repo := &mockDoctorRepo{}
-	auth := &stubAuthProvider{}
-	handler := NewDoctorCommandHandler(repo, auth)
+	handler := NewDoctorCommandHandler(repo)
 
-	_, err := handler.Create(context.Background(), CreateDoctorCommand{
-		Name:          "Dr. Y",
-		Email:         "y@example.com",
-		Phone:         "+55119...",
-		LicenseNumber: "LIC-Y",
-	})
-
-	if !errors.Is(err, application.ErrInvalidInput) {
-		t.Fatalf("expected ErrInvalidInput, got %v", err)
+	tests := []struct {
+		name    string
+		cmd     CreateDoctorCommand
+		wantErr error
+	}{
+		{
+			name:    "missing name",
+			cmd:     CreateDoctorCommand{Email: "a@b", Phone: "1", LicenseNumber: "L"},
+			wantErr: application.ErrInvalidInput,
+		},
+		{
+			name:    "missing email",
+			cmd:     CreateDoctorCommand{Name: "Dr", Phone: "1", LicenseNumber: "L"},
+			wantErr: application.ErrInvalidInput,
+		},
+		{
+			name:    "missing phone",
+			cmd:     CreateDoctorCommand{Name: "Dr", Email: "a@b", LicenseNumber: "L"},
+			wantErr: application.ErrInvalidInput,
+		},
+		{
+			name:    "missing license_number",
+			cmd:     CreateDoctorCommand{Name: "Dr", Email: "a@b", Phone: "1"},
+			wantErr: application.ErrInvalidInput,
+		},
 	}
-	if auth.createCalls != 0 {
-		t.Fatalf("expected firebase NOT to be called without password, got %d", auth.createCalls)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := handler.Create(context.Background(), tt.cmd)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("expected %v, got %v", tt.wantErr, err)
+			}
+		})
 	}
 }

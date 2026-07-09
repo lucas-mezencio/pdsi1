@@ -59,7 +59,7 @@ func TestDocsHandler(t *testing.T) {
 		if !strings.Contains(body, "openapi:") {
 			t.Error("YAML does not contain openapi version")
 		}
-		if !strings.Contains(body, "Medication Notification System API") {
+		if !strings.Contains(body, "CareConnect API") {
 			t.Error("YAML does not contain API title")
 		}
 	})
