@@ -20,7 +20,7 @@ func TestDoctorCommandHandler_Create_SucceedsWithoutPasswordOrAuth(t *testing.T)
 		return nil
 	}
 
-	handler := NewDoctorCommandHandler(repo, &stubAuthProvider{})
+	handler := NewDoctorCommandHandler(repo)
 
 	created, err := handler.Create(context.Background(), CreateDoctorCommand{
 		Name:          "Dr. Who",
@@ -54,7 +54,7 @@ func TestDoctorCommandHandler_Create_DuplicateEmailRejected(t *testing.T) {
 		},
 	}
 
-	handler := NewDoctorCommandHandler(repo, &stubAuthProvider{})
+	handler := NewDoctorCommandHandler(repo)
 
 	_, err := handler.Create(context.Background(), CreateDoctorCommand{
 		Name:          "Dr. Dup",
@@ -76,7 +76,7 @@ func TestDoctorCommandHandler_Create_DuplicateLicenseRejected(t *testing.T) {
 		},
 	}
 
-	handler := NewDoctorCommandHandler(repo, &stubAuthProvider{})
+	handler := NewDoctorCommandHandler(repo)
 
 	_, err := handler.Create(context.Background(), CreateDoctorCommand{
 		Name:          "Dr. Dup",
@@ -99,7 +99,7 @@ func TestDoctorCommandHandler_Create_RepoFailurePropagates(t *testing.T) {
 		},
 	}
 
-	handler := NewDoctorCommandHandler(repo, &stubAuthProvider{})
+	handler := NewDoctorCommandHandler(repo)
 
 	_, err := handler.Create(context.Background(), CreateDoctorCommand{
 		Name:          "Dr. X",
@@ -116,7 +116,7 @@ func TestDoctorCommandHandler_Create_RepoFailurePropagates(t *testing.T) {
 
 func TestDoctorCommandHandler_Create_MissingFieldsRejected(t *testing.T) {
 	repo := &mockDoctorRepo{}
-	handler := NewDoctorCommandHandler(repo, &stubAuthProvider{})
+	handler := NewDoctorCommandHandler(repo)
 
 	tests := []struct {
 		name    string

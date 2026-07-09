@@ -76,7 +76,7 @@ func TestDoctorCommandHandler_Create(t *testing.T) {
 		return nil
 	}
 
-	handler := NewDoctorCommandHandler(repo, &stubAuthProvider{})
+	handler := NewDoctorCommandHandler(repo)
 	created, err := handler.Create(context.Background(), CreateDoctorCommand{
 		Name:          "Dr. Who",
 		Email:         "who@example.com",
@@ -97,7 +97,7 @@ func TestDoctorCommandHandler_Create(t *testing.T) {
 }
 
 func TestDoctorCommandHandler_Update_InvalidInput(t *testing.T) {
-	handler := NewDoctorCommandHandler(&mockDoctorRepo{}, &stubAuthProvider{})
+	handler := NewDoctorCommandHandler(&mockDoctorRepo{})
 	_, err := handler.Update(context.Background(), UpdateDoctorCommand{})
 	if !errors.Is(err, application.ErrInvalidInput) {
 		t.Fatalf("expected invalid input error, got %v", err)
@@ -111,7 +111,7 @@ func TestDoctorCommandHandler_Update_NotFound(t *testing.T) {
 		},
 	}
 
-	handler := NewDoctorCommandHandler(repo, &stubAuthProvider{})
+	handler := NewDoctorCommandHandler(repo)
 	_, err := handler.Update(context.Background(), UpdateDoctorCommand{ID: "missing"})
 	if !errors.Is(err, application.ErrDoctorNotFound) {
 		t.Fatalf("expected doctor not found error, got %v", err)
@@ -131,7 +131,7 @@ func TestDoctorCommandHandler_Update_Success(t *testing.T) {
 		return nil
 	}
 
-	handler := NewDoctorCommandHandler(repo, &stubAuthProvider{})
+	handler := NewDoctorCommandHandler(repo)
 	updated, err := handler.Update(context.Background(), UpdateDoctorCommand{
 		ID:        "doc-1",
 		Name:      "New",
@@ -163,7 +163,7 @@ func TestDoctorCommandHandler_Delete(t *testing.T) {
 		},
 	}
 
-	handler := NewDoctorCommandHandler(repo, &stubAuthProvider{})
+	handler := NewDoctorCommandHandler(repo)
 	if err := handler.Delete(context.Background(), DeleteDoctorCommand{ID: "doc-1"}); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

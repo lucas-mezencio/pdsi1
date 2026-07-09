@@ -139,7 +139,7 @@ func newBugReproServer() (*Server, *stubUserRepoForBugRepro, *stubDoctorRepoForB
 	server := &Server{
 		userCommands:   commands.NewUserCommandHandler(userRepo, auth),
 		userQueries:    queries.NewUserQueryHandler(userRepo),
-		doctorCommands: commands.NewDoctorCommandHandler(doctorRepo, auth),
+		doctorCommands: commands.NewDoctorCommandHandler(doctorRepo),
 		doctorQueries:  queries.NewDoctorQueryHandler(doctorRepo),
 		authCommands:   commands.NewAuthCommandHandler(userRepo, auth),
 	}

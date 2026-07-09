@@ -179,7 +179,7 @@ func main() {
 	userCommands := commands.NewUserCommandHandler(userRepo, authProvider)
 	authCommands := commands.NewAuthCommandHandler(userRepo, authProvider)
 	userQueries := queries.NewUserQueryHandler(userRepo)
-	doctorCommands := commands.NewDoctorCommandHandler(doctorRepo, authProvider)
+	doctorCommands := commands.NewDoctorCommandHandler(doctorRepo)
 	doctorQueries := queries.NewDoctorQueryHandler(doctorRepo)
 	prescriptionCommands := commands.NewPrescriptionCommandHandler(prescriptionRepo, userRepo, doctorRepo, schedulerAdapter)
 	prescriptionQueries := queries.NewPrescriptionQueryHandler(prescriptionRepo)

@@ -37,14 +37,17 @@ type DeleteDoctorCommand struct {
 }
 
 // DoctorCommandHandler handles doctor write operations.
+//
+// Doctors are local-only semantic entities. There is intentionally no
+// AuthenticationProvider dependency: nothing about the doctor lifecycle
+// requires talking to Firebase Auth.
 type DoctorCommandHandler struct {
-	repo         doctor.Repository
-	authProvider AuthenticationProvider
+	repo doctor.Repository
 }
 
 // NewDoctorCommandHandler creates a DoctorCommandHandler.
-func NewDoctorCommandHandler(repo doctor.Repository, authProvider AuthenticationProvider) *DoctorCommandHandler {
-	return &DoctorCommandHandler{repo: repo, authProvider: authProvider}
+func NewDoctorCommandHandler(repo doctor.Repository) *DoctorCommandHandler {
+	return &DoctorCommandHandler{repo: repo}
 }
 
 // Create creates a new doctor.
