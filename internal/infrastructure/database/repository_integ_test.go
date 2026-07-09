@@ -115,12 +115,6 @@ func TestDoctorRepository_CRUD(t *testing.T) {
 	}
 	assertDoctorEqual(t, entity, found)
 
-	byFirebaseID, err := repo.FindByFirebaseID(ctx, entity.FirebaseID)
-	if err != nil {
-		t.Fatalf("failed to find by firebase id: %v", err)
-	}
-	assertDoctorEqual(t, entity, byFirebaseID)
-
 	byLicense, err := repo.FindByLicenseNumber(ctx, entity.LicenseNumber)
 	if err != nil {
 		t.Fatalf("failed to find by license: %v", err)

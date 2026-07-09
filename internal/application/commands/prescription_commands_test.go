@@ -162,9 +162,6 @@ func (m *mockDoctorExistsRepo) FindByID(ctx context.Context, id string) (*doctor
 func (m *mockDoctorExistsRepo) FindByEmail(ctx context.Context, email string) (*doctor.Doctor, error) {
 	return nil, doctor.ErrDoctorNotFound
 }
-func (m *mockDoctorExistsRepo) FindByFirebaseID(ctx context.Context, firebaseID string) (*doctor.Doctor, error) {
-	return nil, doctor.ErrDoctorNotFound
-}
 func (m *mockDoctorExistsRepo) FindByLicenseNumber(ctx context.Context, licenseNumber string) (*doctor.Doctor, error) {
 	return nil, doctor.ErrDoctorNotFound
 }

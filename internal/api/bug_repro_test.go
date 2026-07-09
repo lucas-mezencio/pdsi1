@@ -110,14 +110,6 @@ func (s *stubDoctorRepoForBugRepro) FindByEmail(ctx context.Context, email strin
 	}
 	return nil, doctor.ErrDoctorNotFound
 }
-func (s *stubDoctorRepoForBugRepro) FindByFirebaseID(ctx context.Context, firebaseID string) (*doctor.Doctor, error) {
-	for _, d := range s.items {
-		if d.FirebaseID == firebaseID {
-			return d, nil
-		}
-	}
-	return nil, doctor.ErrDoctorNotFound
-}
 func (s *stubDoctorRepoForBugRepro) FindByLicenseNumber(ctx context.Context, license string) (*doctor.Doctor, error) {
 	for _, d := range s.items {
 		if d.LicenseNumber == license {
@@ -261,16 +253,15 @@ func TestCreateDoctor_RejectsFirebaseIDField(t *testing.T) {
 	}
 }
 
-func TestCreateDoctor_AutoCreatesFirebaseUser(t *testing.T) {
+func TestCreateDoctor_SucceedsWithoutPassword(t *testing.T) {
 	server, _, doctorRepo := newBugReproServer()
 
 	body := strings.NewReader(`{
-		"name":"Danil Molodoy Golubenko",
-		"email":"Dani1.molodoy@hospital.com",
+		"name":"Dr. Jane Smith",
+		"email":"jane.smith@hospital.com",
 		"phone":"+1234567890",
-		"password":"S3cretP@ss",
-		"specialty":"Traumatologist",
-		"license_number":"MED-00009"
+		"specialty":"Cardiology",
+		"license_number":"MED-12345"
 	}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/doctors", body)
 	req.Header.Set("Content-Type", "application/json")
@@ -284,8 +275,8 @@ func TestCreateDoctor_AutoCreatesFirebaseUser(t *testing.T) {
 	if len(doctorRepo.items) != 1 {
 		t.Fatalf("expected 1 doctor saved, got %d", len(doctorRepo.items))
 	}
-	if doctorRepo.items[0].FirebaseID != "firebase-uid-from-admin-sdk" {
-		t.Fatalf("expected firebase_id from Admin SDK, got %q", doctorRepo.items[0].FirebaseID)
+	if doctorRepo.items[0].FirebaseID != "" {
+		t.Fatalf("expected no firebase_id (doctor is local-only), got %q", doctorRepo.items[0].FirebaseID)
 	}
 }
 
