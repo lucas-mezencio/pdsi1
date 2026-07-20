@@ -16,6 +16,8 @@ type Config struct {
 	NotifierMode            string
 	FirebaseCredentialsFile string
 	FirebaseWebAPIKey       string
+	FirebaseWebConfig       string
+	FirebaseWebVAPIDKey     string
 	NotificationLookback    time.Duration
 	DemoPrescriptionSecret  string
 	LogFormat               string
@@ -43,6 +45,8 @@ func Load() (*Config, error) {
 		NotifierMode:            envString("NOTIFIER_MODE", defaultNotifierMode),
 		FirebaseCredentialsFile: envString("FIREBASE_CREDENTIALS_FILE", ""),
 		FirebaseWebAPIKey:       envString("FIREBASE_WEB_API_KEY", ""),
+		FirebaseWebConfig:       envString("FIREBASE_WEB_CONFIG", ""),
+		FirebaseWebVAPIDKey:     envString("FIREBASE_WEB_VAPID_KEY", ""),
 		NotificationLookback:    defaultNotificationLookback,
 		DemoPrescriptionSecret:  envString("DEMO_PRESCRIPTION_SECRET", ""),
 		LogFormat:               envString("LOG_FORMAT", defaultLogFormat),
