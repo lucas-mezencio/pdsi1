@@ -52,6 +52,16 @@ func NewRouter(server gen.ServerInterface, ext *ExtendedServer, firebaseAuth *au
 
 		// LGPD data-export (Brazilian LGPD / GDPR right of access)
 		r.Get("/users/me/data-export", ext.LGPDDataExport)
+
+		// Device tokens (Firebase Cloud Messaging registration)
+		r.Route("/users/me/device-tokens", func(r chi.Router) {
+			r.Post("/", ext.RegisterDeviceToken)
+			r.Get("/", ext.ListDeviceTokens)
+			r.Route("/{tokenId}", func(r chi.Router) {
+				r.Delete("/", ext.DeleteDeviceToken)
+				r.Patch("/enabled", ext.SetDeviceTokenEnabled)
+			})
+		})
 	})
 
 	return router

@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com.br/lucas-mezencio/pdsi1/internal/api/dto"
 	"github.com.br/lucas-mezencio/pdsi1/internal/application"
 	"github.com.br/lucas-mezencio/pdsi1/internal/application/commands"
 	"github.com.br/lucas-mezencio/pdsi1/internal/application/queries"
@@ -21,6 +22,8 @@ type ExtendedServer struct {
 	doseQueries       *queries.DoseRecordQueryHandler
 	linkedUserQueries *queries.LinkedUserQueryHandler
 	lgpdQueries       *queries.LGPDQueryHandler
+	dtCommands        *commands.DeviceTokenCommandHandler
+	dtQueries         *queries.DeviceTokenQueryHandler
 }
 
 // NewExtendedServer creates an ExtendedServer.
@@ -32,6 +35,8 @@ func NewExtendedServer(
 	doseQueries *queries.DoseRecordQueryHandler,
 	linkedUserQueries *queries.LinkedUserQueryHandler,
 	lgpdQueries *queries.LGPDQueryHandler,
+	dtCommands *commands.DeviceTokenCommandHandler,
+	dtQueries *queries.DeviceTokenQueryHandler,
 ) *ExtendedServer {
 	return &ExtendedServer{
 		userRepo:          userRepo,
@@ -41,6 +46,8 @@ func NewExtendedServer(
 		doseQueries:       doseQueries,
 		linkedUserQueries: linkedUserQueries,
 		lgpdQueries:       lgpdQueries,
+		dtCommands:        dtCommands,
+		dtQueries:         dtQueries,
 	}
 }
 
@@ -280,9 +287,95 @@ func (s *ExtendedServer) LGPDDataExport(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, export)
 }
 
+// POST /api/v1/users/me/device-tokens
+func (s *ExtendedServer) RegisterDeviceToken(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Token string `json:"token"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request", err.Error())
+		return
+	}
+	if body.Token == "" {
+		writeError(w, http.StatusBadRequest, "invalid request", "token is required")
+		return
+	}
+
+	saved, err := s.dtCommands.RegisterDeviceToken(r.Context(),
+		commands.RegisterDeviceTokenCommand{
+			CallerFirebaseID: callerUserID(r),
+			Token:            body.Token,
+		})
+	if err != nil {
+		writeExtendedError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, dto.DeviceTokenResponseFromDomain(saved))
+}
+
+// GET /api/v1/users/me/device-tokens
+func (s *ExtendedServer) ListDeviceTokens(w http.ResponseWriter, r *http.Request) {
+	out, err := s.dtQueries.ListDeviceTokens(r.Context(),
+		queries.ListDeviceTokensQuery{CallerFirebaseID: callerUserID(r)})
+	if err != nil {
+		writeExtendedError(w, err)
+		return
+	}
+	resp := make([]dto.DeviceTokenResponse, 0, len(out))
+	for _, t := range out {
+		resp = append(resp, dto.DeviceTokenResponseFromDomain(t))
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// DELETE /api/v1/users/me/device-tokens/{tokenId}
+func (s *ExtendedServer) DeleteDeviceToken(w http.ResponseWriter, r *http.Request) {
+	tokenID := chi.URLParam(r, "tokenId")
+	if tokenID == "" {
+		writeError(w, http.StatusBadRequest, "invalid request", "tokenId is required")
+		return
+	}
+	if err := s.dtCommands.DeleteDeviceToken(r.Context(),
+		commands.DeleteDeviceTokenCommand{
+			CallerFirebaseID: callerUserID(r),
+			TokenID:          tokenID,
+		}); err != nil {
+		writeExtendedError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// PATCH /api/v1/users/me/device-tokens/{tokenId}/enabled
+func (s *ExtendedServer) SetDeviceTokenEnabled(w http.ResponseWriter, r *http.Request) {
+	tokenID := chi.URLParam(r, "tokenId")
+	var body struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request", err.Error())
+		return
+	}
+	updated, err := s.dtCommands.SetDeviceTokenEnabled(r.Context(),
+		commands.SetDeviceTokenEnabledCommand{
+			CallerFirebaseID: callerUserID(r),
+			TokenID:          tokenID,
+			Enabled:          body.Enabled,
+		})
+	if err != nil {
+		writeExtendedError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, dto.DeviceTokenResponseFromDomain(updated))
+}
+
 func writeExtendedError(w http.ResponseWriter, err error) {
 	if errors.Is(err, application.ErrInvalidInput) {
 		writeError(w, http.StatusBadRequest, "invalid request", err.Error())
+		return
+	}
+	if errors.Is(err, application.ErrConflict) {
+		writeError(w, http.StatusConflict, "conflict", err.Error())
 		return
 	}
 	if errors.Is(err, application.ErrAuthenticationFailed) {

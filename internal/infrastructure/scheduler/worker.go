@@ -158,7 +158,7 @@ func (w *SchedulerWorker) jobsKey() string {
 
 // StartNotificationConsumer consumes notification jobs and sends push notifications.
 // Notifications are sent to the target elderly user AND all their linked caregivers.
-func StartNotificationConsumer(ctx context.Context, subscriber message.Subscriber, sender notification.Sender, userRepo user.Repository, cleanup CleanupStore) error {
+func StartNotificationConsumer(ctx context.Context, subscriber message.Subscriber, sender notification.Sender, userRepo user.Repository, lookup notification.Lookup, cleanup CleanupStore) error {
 	if subscriber == nil {
 		return errors.New("subscriber is required")
 	}
@@ -170,6 +170,9 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 	}
 	if cleanup == nil {
 		cleanup = &noopCleanup{}
+	}
+	if lookup == nil {
+		lookup = &noopLookup{}
 	}
 
 	messages, err := subscriber.Subscribe(ctx, NotificationTopic)
@@ -211,16 +214,49 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 			scheduledAt := job.ScheduledAt.Format(time.RFC3339)
 
 			// Send to the primary user (elderly).
-			note := notification.Notification{
-				UserID:         job.UserID,
-				PrescriptionID: job.PrescriptionID,
-				MedicamentName: job.MedicamentName,
-				Dosage:         job.Dosage,
-				ScheduledAt:    scheduledAt,
-				FirebaseToken:  userEntity.FirebaseToken,
+			tokens, lookupErr := lookup.ActiveTokens(ctx, userEntity.ID)
+			if lookupErr != nil {
+				log.Printf("notification token lookup failed for user %s: %v", userEntity.ID, lookupErr)
 			}
-			if err := sender.Send(ctx, note); err != nil {
-				log.Printf("notification send failed: %v", err)
+			switch {
+			case len(tokens) > 0:
+				sendOK := true
+				for _, t := range tokens {
+					note := notification.Notification{
+						UserID:         job.UserID,
+						PrescriptionID: job.PrescriptionID,
+						MedicamentName: job.MedicamentName,
+						Dosage:         job.Dosage,
+						ScheduledAt:    scheduledAt,
+						FirebaseToken:  t.FCMToken,
+					}
+					if err := sender.Send(ctx, note); err != nil {
+						log.Printf("notification send failed: %v", err)
+						sendOK = false
+						break
+					}
+				}
+				if !sendOK {
+					msg.Nack()
+					continue
+				}
+			case userEntity.FirebaseToken != "":
+				log.Printf("notification fallback to legacy token for user %s", userEntity.ID)
+				note := notification.Notification{
+					UserID:         job.UserID,
+					PrescriptionID: job.PrescriptionID,
+					MedicamentName: job.MedicamentName,
+					Dosage:         job.Dosage,
+					ScheduledAt:    scheduledAt,
+					FirebaseToken:  userEntity.FirebaseToken,
+				}
+				if err := sender.Send(ctx, note); err != nil {
+					log.Printf("notification send failed: %v", err)
+					msg.Nack()
+					continue
+				}
+			default:
+				log.Printf("notification no tokens for user %s", userEntity.ID)
 				msg.Nack()
 				continue
 			}
@@ -231,19 +267,38 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 				log.Printf("caregiver lookup failed for user %s: %v", job.UserID, err)
 			}
 			for _, cg := range caregivers {
-				if !cg.NotificationsEnabled || cg.FirebaseToken == "" {
-					continue
+				cgTokens, cgLookupErr := lookup.ActiveTokens(ctx, cg.ID)
+				if cgLookupErr != nil {
+					log.Printf("caregiver token lookup failed for %s: %v", cg.ID, cgLookupErr)
 				}
-				cgNote := notification.Notification{
-					UserID:         job.UserID,
-					PrescriptionID: job.PrescriptionID,
-					MedicamentName: job.MedicamentName,
-					Dosage:         job.Dosage,
-					ScheduledAt:    scheduledAt,
-					FirebaseToken:  cg.FirebaseToken,
-				}
-				if err := sender.Send(ctx, cgNote); err != nil {
-					log.Printf("caregiver notification send failed for %s: %v", cg.ID, err)
+				switch {
+				case len(cgTokens) > 0:
+					for _, t := range cgTokens {
+						cgNote := notification.Notification{
+							UserID:         job.UserID,
+							PrescriptionID: job.PrescriptionID,
+							MedicamentName: job.MedicamentName,
+							Dosage:         job.Dosage,
+							ScheduledAt:    scheduledAt,
+							FirebaseToken:  t.FCMToken,
+						}
+						if err := sender.Send(ctx, cgNote); err != nil {
+							log.Printf("caregiver notification send failed for %s: %v", cg.ID, err)
+						}
+					}
+				case cg.FirebaseToken != "":
+					log.Printf("notification fallback to legacy token for caregiver %s", cg.ID)
+					cgNote := notification.Notification{
+						UserID:         job.UserID,
+						PrescriptionID: job.PrescriptionID,
+						MedicamentName: job.MedicamentName,
+						Dosage:         job.Dosage,
+						ScheduledAt:    scheduledAt,
+						FirebaseToken:  cg.FirebaseToken,
+					}
+					if err := sender.Send(ctx, cgNote); err != nil {
+						log.Printf("caregiver notification send failed for %s: %v", cg.ID, err)
+					}
 				}
 			}
 

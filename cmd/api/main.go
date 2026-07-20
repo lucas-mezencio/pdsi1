@@ -147,7 +147,10 @@ func main() {
 	prescriptionRepo := database.NewPrescriptionRepository(db)
 	doseRecordRepo := database.NewDoseRecordRepository(db)
 	invitationRepo := database.NewInvitationRepository(db)
+	deviceTokenRepo := database.NewDeviceTokenRepository(db)
 	eventStore := database.NewNotificationEventStore(db)
+
+	lookup := notification.NewPostgresLookup(deviceTokenRepo)
 
 	var authProvider commands.AuthenticationProvider
 	firebaseAuthService, err := firebaseauth.NewService(ctx, appConfig.FirebaseCredentialsFile, appConfig.FirebaseWebAPIKey)
@@ -188,6 +191,8 @@ func main() {
 	doseQueries := queries.NewDoseRecordQueryHandler(doseRecordRepo, userRepo)
 	linkedUserQueries := queries.NewLinkedUserQueryHandler(userRepo, invitationRepo)
 	lgpdQueries := queries.NewLGPDQueryHandler(userRepo, prescriptionRepo, doseRecordRepo, invitationRepo)
+	deviceTokenCommands := commands.NewDeviceTokenCommandHandler(deviceTokenRepo, userRepo)
+	deviceTokenQueries := queries.NewDeviceTokenQueryHandler(deviceTokenRepo, userRepo)
 
 	apiServer := httpapi.NewServer(
 		userCommands,
@@ -207,6 +212,8 @@ func main() {
 		doseQueries,
 		linkedUserQueries,
 		lgpdQueries,
+		deviceTokenCommands,
+		deviceTokenQueries,
 	)
 
 	firebaseAuth := firebaseauth.GetAuthClient(firebaseAuthService)
@@ -232,7 +239,7 @@ func main() {
 
 	g.Go(func() error {
 		cleanup := scheduler.NewRedisCleanupStore(redisClient, "")
-		if err := scheduler.StartNotificationConsumer(gCtx, subscriber, sender, userRepo, cleanup); err != nil && !errors.Is(err, context.Canceled) {
+		if err := scheduler.StartNotificationConsumer(gCtx, subscriber, sender, userRepo, lookup, cleanup); err != nil && !errors.Is(err, context.Canceled) {
 			return fmt.Errorf("notification consumer stopped: %w", err)
 		}
 		return nil

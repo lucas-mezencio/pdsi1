@@ -3,6 +3,7 @@ package dto
 import (
 	"time"
 
+	"github.com.br/lucas-mezencio/pdsi1/internal/domain/devicetoken"
 	"github.com.br/lucas-mezencio/pdsi1/internal/domain/doctor"
 	"github.com.br/lucas-mezencio/pdsi1/internal/domain/user"
 )
@@ -93,4 +94,24 @@ func DoctorResponsesFromDomain(doctors []*doctor.Doctor) []DoctorResponse {
 		out = append(out, DoctorResponseFromDomain(d))
 	}
 	return out
+}
+
+type DeviceTokenResponse struct {
+	ID         string     `json:"id"`
+	UserID     string     `json:"user_id"`
+	Enabled    bool       `json:"enabled"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+}
+
+func DeviceTokenResponseFromDomain(t *devicetoken.DeviceToken) DeviceTokenResponse {
+	return DeviceTokenResponse{
+		ID:         t.ID,
+		UserID:     t.UserID,
+		Enabled:    t.Enabled,
+		CreatedAt:  t.CreatedAt,
+		UpdatedAt:  t.UpdatedAt,
+		LastUsedAt: t.LastUsedAt,
+	}
 }

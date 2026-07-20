@@ -3,6 +3,8 @@ package scheduler
 import (
 	"context"
 	"time"
+
+	"github.com.br/lucas-mezencio/pdsi1/internal/infrastructure/notification"
 )
 
 type NotificationEvent struct {
@@ -48,4 +50,12 @@ func (n *noopCleanup) Delete(ctx context.Context, jobID string) error {
 	_ = ctx
 	_ = jobID
 	return nil
+}
+
+type noopLookup struct{}
+
+func (n *noopLookup) ActiveTokens(ctx context.Context, userID string) ([]notification.Token, error) {
+	_ = ctx
+	_ = userID
+	return nil, nil
 }
