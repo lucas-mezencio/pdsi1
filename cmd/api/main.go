@@ -220,7 +220,7 @@ func main() {
 
 	demoSecret := appConfig.DemoPrescriptionSecret
 
-	handler := httpapi.NewRouter(apiServer, extServer, firebaseAuth, demoSecret)
+	handler := httpapi.NewRouter(apiServer, extServer, firebaseAuth, demoSecret, *appConfig)
 
 	httpServer := &http.Server{
 		Addr:              addr,

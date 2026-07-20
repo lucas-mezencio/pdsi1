@@ -5,11 +5,12 @@ import (
 
 	"firebase.google.com/go/v4/auth"
 	gen "github.com.br/lucas-mezencio/pdsi1/internal/api/gen"
+	"github.com.br/lucas-mezencio/pdsi1/internal/config"
 	"github.com/go-chi/chi/v5"
 )
 
 // NewRouter builds the chi router for the API.
-func NewRouter(server gen.ServerInterface, ext *ExtendedServer, firebaseAuth *auth.Client, demoSecret string) http.Handler {
+func NewRouter(server gen.ServerInterface, ext *ExtendedServer, firebaseAuth *auth.Client, demoSecret string, cfg config.Config) http.Handler {
 	router := chi.NewRouter()
 
 	// Logging middleware: emits one slog entry per request (must run first so
@@ -62,6 +63,14 @@ func NewRouter(server gen.ServerInterface, ext *ExtendedServer, firebaseAuth *au
 				r.Patch("/enabled", ext.SetDeviceTokenEnabled)
 			})
 		})
+
+		// Browser test page for device tokens (Phase 1)
+		testCfg := TestNotificationsConfig{
+			FirebaseWebConfig:   cfg.FirebaseWebConfig,
+			FirebaseWebVAPIDKey: cfg.FirebaseWebVAPIDKey,
+		}
+		r.Get("/test-notifications", TestNotificationsPage(testCfg))
+		r.Get("/test-notifications/config", TestNotificationsConfigJSON(testCfg))
 	})
 
 	return router
