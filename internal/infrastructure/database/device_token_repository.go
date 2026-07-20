@@ -35,10 +35,7 @@ func (r *DeviceTokenRepository) Save(ctx context.Context, t *devicetoken.DeviceT
         INSERT INTO user_device_tokens
             (id, user_id, token, enabled, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6)
-        ON CONFLICT (token) DO UPDATE
-            SET user_id    = EXCLUDED.user_id,
-                enabled    = TRUE,
-                updated_at = EXCLUDED.updated_at
+        ON CONFLICT (token) DO NOTHING
         RETURNING id
     `
 	var id string
@@ -48,20 +45,17 @@ func (r *DeviceTokenRepository) Save(ctx context.Context, t *devicetoken.DeviceT
 	if err == nil {
 		return r.FindByID(ctx, id)
 	}
-
-	// ON CONFLICT updates regardless of existing user_id; we need to detect a
-	// cross-user collision. After the upsert, if the row's user_id does not
-	// equal the requested one, revert and report ErrConflict.
-	existing, ferr := r.findByToken(ctx, t.Token)
-	if ferr != nil {
+	if !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
+
+	// No insert happened: token already exists. Determine whether this is a
+	// same-user re-registration (allowed) or a cross-user collision (forbidden).
+	existing, ferr := r.findByToken(ctx, t.Token)
+	if ferr != nil {
+		return nil, ferr
+	}
 	if existing.UserID != t.UserID {
-		// Restore original owner.
-		_, _ = r.db.ExecContext(ctx,
-			`UPDATE user_device_tokens SET user_id = $1, updated_at = $2 WHERE token = $3`,
-			existing.UserID, existing.UpdatedAt, t.Token,
-		)
 		return nil, devicetoken.ErrConflict
 	}
 	return existing, nil
