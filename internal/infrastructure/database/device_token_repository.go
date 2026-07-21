@@ -19,8 +19,6 @@ func NewDeviceTokenRepository(db *sql.DB) *DeviceTokenRepository {
 	return &DeviceTokenRepository{db: db}
 }
 
-const pgErrUniqueViolation = "23505"
-
 func (r *DeviceTokenRepository) Save(ctx context.Context, t *devicetoken.DeviceToken) (*devicetoken.DeviceToken, error) {
 	if t.ID == "" {
 		t.ID = uuid.New().String()
@@ -50,7 +48,8 @@ func (r *DeviceTokenRepository) Save(ctx context.Context, t *devicetoken.DeviceT
 	}
 
 	// No insert happened: token already exists. Determine whether this is a
-	// same-user re-registration (allowed) or a cross-user collision (forbidden).
+	// same-user re-registration (re-enable and bump updated_at) or a cross-user
+	// collision (forbidden).
 	existing, ferr := r.findByToken(ctx, t.Token)
 	if ferr != nil {
 		return nil, ferr
@@ -58,7 +57,12 @@ func (r *DeviceTokenRepository) Save(ctx context.Context, t *devicetoken.DeviceT
 	if existing.UserID != t.UserID {
 		return nil, devicetoken.ErrConflict
 	}
-	return existing, nil
+	if _, err := r.db.ExecContext(ctx,
+		`UPDATE user_device_tokens SET enabled = TRUE, updated_at = $1 WHERE token = $2`,
+		now, t.Token); err != nil {
+		return nil, err
+	}
+	return r.FindByID(ctx, existing.ID)
 }
 
 func (r *DeviceTokenRepository) FindByID(ctx context.Context, id string) (*devicetoken.DeviceToken, error) {
@@ -110,6 +114,13 @@ func (r *DeviceTokenRepository) SetEnabled(ctx context.Context, id string, enabl
 		return nil, devicetoken.ErrNotFound
 	}
 	return r.FindByID(ctx, id)
+}
+
+func (r *DeviceTokenRepository) TouchLastUsed(ctx context.Context, id string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE user_device_tokens SET last_used_at = $1 WHERE id = $2`,
+		time.Now(), id)
+	return err
 }
 
 func (r *DeviceTokenRepository) scanOne(ctx context.Context, query string, args ...any) (*devicetoken.DeviceToken, error) {

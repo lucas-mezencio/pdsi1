@@ -220,11 +220,12 @@ func (f *fakeUserRepoByFirebase) UnlinkUsers(context.Context, string, string) er
 
 // fakeDeviceTokenRepo implements devicetoken.Repository with function fields.
 type fakeDeviceTokenRepo struct {
-	saveFn         func(ctx context.Context, t *devicetoken.DeviceToken) (*devicetoken.DeviceToken, error)
-	findByIDFn     func(ctx context.Context, id string) (*devicetoken.DeviceToken, error)
-	findByUserIDFn func(ctx context.Context, userID string) ([]*devicetoken.DeviceToken, error)
-	deleteFn       func(ctx context.Context, id string) error
-	setEnabledFn   func(ctx context.Context, id string, enabled bool) (*devicetoken.DeviceToken, error)
+	saveFn          func(ctx context.Context, t *devicetoken.DeviceToken) (*devicetoken.DeviceToken, error)
+	findByIDFn      func(ctx context.Context, id string) (*devicetoken.DeviceToken, error)
+	findByUserIDFn  func(ctx context.Context, userID string) ([]*devicetoken.DeviceToken, error)
+	deleteFn        func(ctx context.Context, id string) error
+	setEnabledFn    func(ctx context.Context, id string, enabled bool) (*devicetoken.DeviceToken, error)
+	touchLastUsedFn func(ctx context.Context, id string) error
 }
 
 func (f *fakeDeviceTokenRepo) Save(ctx context.Context, t *devicetoken.DeviceToken) (*devicetoken.DeviceToken, error) {
@@ -256,4 +257,10 @@ func (f *fakeDeviceTokenRepo) SetEnabled(ctx context.Context, id string, enabled
 		return &devicetoken.DeviceToken{ID: id, Enabled: enabled}, nil
 	}
 	return f.setEnabledFn(ctx, id, enabled)
+}
+func (f *fakeDeviceTokenRepo) TouchLastUsed(ctx context.Context, id string) error {
+	if f.touchLastUsedFn == nil {
+		return nil
+	}
+	return f.touchLastUsedFn(ctx, id)
 }

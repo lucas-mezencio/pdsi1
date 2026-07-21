@@ -117,3 +117,63 @@ func TestDeviceTokenRepository_CRUD(t *testing.T) {
 		t.Fatalf("expected ErrNotFound after delete, got %v", err)
 	}
 }
+
+// TestDeviceTokenRepository_Save_SameUserReRegisterReenables exercises the
+// spec §4 same-user re-registration behavior: when the same user re-registers
+// a token that was previously disabled, the Save must re-enable it (and bump
+// updated_at), not return the stale disabled row.
+func TestDeviceTokenRepository_Save_SameUserReRegisterReenables(t *testing.T) {
+	db := openTestDB(t)
+	userRepo := NewUserRepository(db)
+	repo := NewDeviceTokenRepository(db)
+	ctx := context.Background()
+
+	owner := seedUserForDeviceTokenTest(t, userRepo, 3)
+
+	first, err := devicetoken.New(owner, "token-rereg-9999")
+	if err != nil {
+		t.Fatalf("new token: %v", err)
+	}
+	saved, err := repo.Save(ctx, first)
+	if err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	if !saved.Enabled {
+		t.Fatal("expected enabled=true on first save")
+	}
+
+	disabled, err := repo.SetEnabled(ctx, saved.ID, false)
+	if err != nil {
+		t.Fatalf("disable: %v", err)
+	}
+	if disabled.Enabled {
+		t.Fatal("expected enabled=false after SetEnabled(false)")
+	}
+
+	rereg, err := devicetoken.New(owner, "token-rereg-9999")
+	if err != nil {
+		t.Fatalf("new rereg: %v", err)
+	}
+	got, err := repo.Save(ctx, rereg)
+	if err != nil {
+		t.Fatalf("re-save: %v", err)
+	}
+	if got.ID != saved.ID {
+		t.Fatalf("expected same id %s, got %s", saved.ID, got.ID)
+	}
+	if !got.Enabled {
+		t.Fatalf("expected enabled=true after same-user re-register, got enabled=false")
+	}
+	if !got.UpdatedAt.After(disabled.UpdatedAt) {
+		t.Fatalf("expected updated_at to advance after re-register; disabled.updated_at=%v, got.updated_at=%v",
+			disabled.UpdatedAt, got.UpdatedAt)
+	}
+
+	foundAgain, err := repo.FindByID(ctx, saved.ID)
+	if err != nil {
+		t.Fatalf("find after re-register: %v", err)
+	}
+	if !foundAgain.Enabled {
+		t.Fatalf("expected persisted enabled=true after re-register, got enabled=false")
+	}
+}

@@ -27,6 +27,7 @@ func (m *mockDeviceTokenRepo) Delete(context.Context, string) error { panic("not
 func (m *mockDeviceTokenRepo) SetEnabled(context.Context, string, bool) (*devicetoken.DeviceToken, error) {
 	panic("not used")
 }
+func (m *mockDeviceTokenRepo) TouchLastUsed(context.Context, string) error { panic("not used") }
 
 func TestListDeviceTokens(t *testing.T) {
 	userID := uuid.New().String()

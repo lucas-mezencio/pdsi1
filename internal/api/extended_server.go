@@ -402,7 +402,8 @@ func writeExtendedError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "invitation not pending", err.Error())
 		return
 	}
-	if errors.Is(err, application.ErrUserNotFound) ||
+	if errors.Is(err, application.ErrNotFound) ||
+		errors.Is(err, application.ErrUserNotFound) ||
 		errors.Is(err, application.ErrInvitationNotFound) ||
 		errors.Is(err, application.ErrDoseRecordNotFound) {
 		writeError(w, http.StatusNotFound, "not found", err.Error())

@@ -59,3 +59,9 @@ func (n *noopLookup) ActiveTokens(ctx context.Context, userID string) ([]notific
 	_ = userID
 	return nil, nil
 }
+
+func (n *noopLookup) TouchLastUsed(ctx context.Context, id string) error {
+	_ = ctx
+	_ = id
+	return nil
+}

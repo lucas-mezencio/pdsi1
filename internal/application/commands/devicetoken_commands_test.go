@@ -18,6 +18,7 @@ type mockDeviceTokenRepo struct {
     findByUserIDFn  func(ctx context.Context, userID string) ([]*devicetoken.DeviceToken, error)
     deleteFn        func(ctx context.Context, id string) error
     setEnabledFn    func(ctx context.Context, id string, enabled bool) (*devicetoken.DeviceToken, error)
+    touchLastUsedFn func(ctx context.Context, id string) error
 }
 
 func (m *mockDeviceTokenRepo) Save(ctx context.Context, t *devicetoken.DeviceToken) (*devicetoken.DeviceToken, error) {
@@ -34,6 +35,9 @@ func (m *mockDeviceTokenRepo) Delete(ctx context.Context, id string) error {
 }
 func (m *mockDeviceTokenRepo) SetEnabled(ctx context.Context, id string, enabled bool) (*devicetoken.DeviceToken, error) {
     return m.setEnabledFn(ctx, id, enabled)
+}
+func (m *mockDeviceTokenRepo) TouchLastUsed(ctx context.Context, id string) error {
+    return m.touchLastUsedFn(ctx, id)
 }
 
 // mockDeviceTokenUserRepo is a minimal user.Repository mock for device-token tests.

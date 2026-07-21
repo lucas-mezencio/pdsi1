@@ -21,4 +21,9 @@ type Repository interface {
     // SetEnabled toggles the enabled flag and bumps UpdatedAt. Returns the
     // updated row, or ErrNotFound.
     SetEnabled(ctx context.Context, id string, enabled bool) (*DeviceToken, error)
+
+    // TouchLastUsed sets last_used_at to the current time for the given id.
+    // Best-effort: callers should not fail the surrounding operation when
+    // this returns an error. No-op if the id does not exist.
+    TouchLastUsed(ctx context.Context, id string) error
 }

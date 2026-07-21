@@ -15,6 +15,13 @@ type Token struct {
 // Lookup returns active device tokens for a user.
 type Lookup interface {
 	ActiveTokens(ctx context.Context, userID string) ([]Token, error)
+
+	// TouchLastUsed records that the given device-token id was used to send
+	// a notification. Best-effort: implementations may swallow errors to keep
+	// the send path fast, but the Lookup port is the natural place for the
+	// call site to live since it already owns the token lifecycle from the
+	// scheduler worker's perspective.
+	TouchLastUsed(ctx context.Context, id string) error
 }
 
 // PostgresLookup implements Lookup against the DeviceTokenRepository.
@@ -44,4 +51,9 @@ func (p *PostgresLookup) ActiveTokens(ctx context.Context, userID string) ([]Tok
 		})
 	}
 	return out, nil
+}
+
+// TouchLastUsed delegates to the underlying repository.
+func (p *PostgresLookup) TouchLastUsed(ctx context.Context, id string) error {
+	return p.repo.TouchLastUsed(ctx, id)
 }

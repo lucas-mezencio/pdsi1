@@ -235,6 +235,9 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 						sendOK = false
 						break
 					}
+					if err := lookup.TouchLastUsed(ctx, t.DeviceTokenID); err != nil {
+						log.Printf("device token touch last-used failed for %s: %v", t.DeviceTokenID, err)
+					}
 				}
 				if !sendOK {
 					msg.Nack()
@@ -267,6 +270,9 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 					}
 					if err := sender.Send(ctx, cgNote); err != nil {
 						log.Printf("caregiver notification send failed for %s: %v", cg.ID, err)
+					}
+					if err := lookup.TouchLastUsed(ctx, t.DeviceTokenID); err != nil {
+						log.Printf("caregiver device token touch last-used failed for %s: %v", t.DeviceTokenID, err)
 					}
 				}
 			}
