@@ -240,21 +240,6 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 					msg.Nack()
 					continue
 				}
-			case userEntity.FirebaseToken != "":
-				log.Printf("notification fallback to legacy token for user %s", userEntity.ID)
-				note := notification.Notification{
-					UserID:         job.UserID,
-					PrescriptionID: job.PrescriptionID,
-					MedicamentName: job.MedicamentName,
-					Dosage:         job.Dosage,
-					ScheduledAt:    scheduledAt,
-					FirebaseToken:  userEntity.FirebaseToken,
-				}
-				if err := sender.Send(ctx, note); err != nil {
-					log.Printf("notification send failed: %v", err)
-					msg.Nack()
-					continue
-				}
 			default:
 				log.Printf("notification no tokens for user %s", userEntity.ID)
 				msg.Nack()
@@ -271,30 +256,14 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 				if cgLookupErr != nil {
 					log.Printf("caregiver token lookup failed for %s: %v", cg.ID, cgLookupErr)
 				}
-				switch {
-				case len(cgTokens) > 0:
-					for _, t := range cgTokens {
-						cgNote := notification.Notification{
-							UserID:         job.UserID,
-							PrescriptionID: job.PrescriptionID,
-							MedicamentName: job.MedicamentName,
-							Dosage:         job.Dosage,
-							ScheduledAt:    scheduledAt,
-							FirebaseToken:  t.FCMToken,
-						}
-						if err := sender.Send(ctx, cgNote); err != nil {
-							log.Printf("caregiver notification send failed for %s: %v", cg.ID, err)
-						}
-					}
-				case cg.FirebaseToken != "":
-					log.Printf("notification fallback to legacy token for caregiver %s", cg.ID)
+				for _, t := range cgTokens {
 					cgNote := notification.Notification{
 						UserID:         job.UserID,
 						PrescriptionID: job.PrescriptionID,
 						MedicamentName: job.MedicamentName,
 						Dosage:         job.Dosage,
 						ScheduledAt:    scheduledAt,
-						FirebaseToken:  cg.FirebaseToken,
+						FirebaseToken:  t.FCMToken,
 					}
 					if err := sender.Send(ctx, cgNote); err != nil {
 						log.Printf("caregiver notification send failed for %s: %v", cg.ID, err)

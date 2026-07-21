@@ -9,19 +9,17 @@ import (
 )
 
 // UserResponse is the JSON-safe representation of a user returned by the API.
-// It deliberately omits FirebaseToken, which is server-internal and must never
-// leak through HTTP responses.
+// It deliberately omits any server-internal fields (e.g. push-delivery tokens).
 type UserResponse struct {
-	ID                   string    `json:"id"`
-	Name                 string    `json:"name"`
-	Email                string    `json:"email"`
-	Phone                string    `json:"phone"`
-	CPF                  string    `json:"cpf,omitempty"`
-	FirebaseID           string    `json:"firebase_id,omitempty"`
-	NotificationsEnabled bool      `json:"notifications_enabled"`
-	Role                 user.Role `json:"role"`
-	CreatedAt            time.Time `json:"created_at"`
-	UpdatedAt            time.Time `json:"updated_at"`
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	Email      string    `json:"email"`
+	Phone      string    `json:"phone"`
+	CPF        string    `json:"cpf,omitempty"`
+	FirebaseID string    `json:"firebase_id,omitempty"`
+	Role       user.Role `json:"role"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 // UserResponseFromDomain converts a domain user into the API response shape.
@@ -30,16 +28,15 @@ func UserResponseFromDomain(u *user.User) UserResponse {
 		return UserResponse{}
 	}
 	return UserResponse{
-		ID:                   u.ID,
-		Name:                 u.Name,
-		Email:                u.Email,
-		Phone:                u.Phone,
-		CPF:                  u.CPF,
-		FirebaseID:           u.FirebaseID,
-		NotificationsEnabled: u.NotificationsEnabled,
-		Role:                 u.Role,
-		CreatedAt:            u.CreatedAt,
-		UpdatedAt:            u.UpdatedAt,
+		ID:         u.ID,
+		Name:       u.Name,
+		Email:      u.Email,
+		Phone:      u.Phone,
+		CPF:        u.CPF,
+		FirebaseID: u.FirebaseID,
+		Role:       u.Role,
+		CreatedAt:  u.CreatedAt,
+		UpdatedAt:  u.UpdatedAt,
 	}
 }
 

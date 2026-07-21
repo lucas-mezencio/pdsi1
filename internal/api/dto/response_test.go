@@ -10,20 +10,18 @@ import (
 	"github.com.br/lucas-mezencio/pdsi1/internal/domain/user"
 )
 
-func TestUserResponse_StripsFirebaseToken(t *testing.T) {
+func TestUserResponse_DoesNotExposeServerInternalFields(t *testing.T) {
 	now := time.Date(2026, 6, 30, 12, 0, 0, 0, time.UTC)
 	usr := &user.User{
-		ID:            "user-1",
-		Name:          "Maria",
-		Email:         "maria@example.com",
-		Phone:         "+55119...",
-		CPF:           "52998224725",
-		FirebaseID:    "firebase-uid-1",
-		FirebaseToken: "super-secret-firebase-token",
-		Role:          user.RoleElderly,
-		NotificationsEnabled: true,
-		CreatedAt:     now,
-		UpdatedAt:     now,
+		ID:         "user-1",
+		Name:       "Maria",
+		Email:      "maria@example.com",
+		Phone:      "+55119...",
+		CPF:        "52998224725",
+		FirebaseID: "firebase-uid-1",
+		Role:       user.RoleElderly,
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
 	resp := dto.UserResponseFromDomain(usr)
@@ -40,8 +38,8 @@ func TestUserResponse_StripsFirebaseToken(t *testing.T) {
 	if _, ok := raw["firebase_token"]; ok {
 		t.Fatalf("firebase_token must NOT appear in the response, got: %s", body)
 	}
-	if _, ok := raw["firebaseToken"]; ok {
-		t.Fatalf("firebaseToken must NOT appear in the response, got: %s", body)
+	if _, ok := raw["notifications_enabled"]; ok {
+		t.Fatalf("notifications_enabled must NOT appear in the response, got: %s", body)
 	}
 
 	if raw["firebase_id"] != "firebase-uid-1" {

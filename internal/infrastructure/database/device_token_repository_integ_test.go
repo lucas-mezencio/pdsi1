@@ -21,7 +21,6 @@ func seedUserForDeviceTokenTest(t *testing.T, repo *UserRepository, idx int) str
 		fmt.Sprintf("alice-%d@example.com", idx),
 		fmt.Sprintf("+1000000000%d", idx),
 		cpf,
-		"token",
 		user.RoleElderly,
 	)
 	if err != nil {

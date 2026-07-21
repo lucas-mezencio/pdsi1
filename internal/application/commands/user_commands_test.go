@@ -178,58 +178,6 @@ func TestUserCommandHandler_Update_Success(t *testing.T) {
 	}
 }
 
-func TestUserCommandHandler_UpdateFirebaseToken(t *testing.T) {
-	entity := &user.User{ID: "user-1", FirebaseToken: "old"}
-	repo := &mockUserRepo{
-		findByIDFn: func(ctx context.Context, id string) (*user.User, error) {
-			return entity, nil
-		},
-	}
-	var saved *user.User
-	repo.saveFn = func(ctx context.Context, u *user.User) error {
-		saved = u
-		return nil
-	}
-
-	handler := NewUserCommandHandler(repo, &stubAuthProvider{})
-	updated, err := handler.UpdateFirebaseToken(context.Background(), UpdateUserFirebaseTokenCommand{
-		ID:            "user-1",
-		FirebaseToken: "new-token",
-	})
-
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if updated.FirebaseToken != "new-token" {
-		t.Fatalf("expected token updated, got %s", updated.FirebaseToken)
-	}
-	if saved == nil {
-		t.Fatal("expected user to be saved")
-	}
-}
-
-func TestUserCommandHandler_ToggleNotifications(t *testing.T) {
-	entity := &user.User{ID: "user-1", NotificationsEnabled: true}
-	repo := &mockUserRepo{
-		findByIDFn: func(ctx context.Context, id string) (*user.User, error) {
-			return entity, nil
-		},
-	}
-
-	handler := NewUserCommandHandler(repo, &stubAuthProvider{})
-	updated, err := handler.ToggleNotifications(context.Background(), ToggleUserNotificationsCommand{
-		ID:      "user-1",
-		Enabled: false,
-	})
-
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if updated.NotificationsEnabled {
-		t.Fatal("expected notifications disabled")
-	}
-}
-
 func TestUserCommandHandler_Delete(t *testing.T) {
 	deleted := false
 	repo := &mockUserRepo{

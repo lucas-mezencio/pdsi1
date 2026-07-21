@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -156,7 +157,7 @@ func TestExtendedServer_LGPDDataExport_Returns200WithAllSections(t *testing.T) {
 	usr := &user.User{
 		ID: "user-1", Name: "Maria", Email: "maria@example.com",
 		CPF: "52998224725", Phone: "+55119...",
-		Role: user.RoleElderly, NotificationsEnabled: true,
+		Role: user.RoleElderly,
 	}
 	rxs := []*prescription.Prescription{{
 		ID:     "rx-1",
@@ -241,17 +242,16 @@ func TestExtendedServer_LGPDDataExport_OnlyReturnsCallersOwnData(t *testing.T) {
 	}
 }
 
-// firebase_token is the FCM device token used by the scheduler worker to
-// push medication reminders. The LGPD self-export endpoint must not
-// surface it on the wire even though the caller is exporting their own
-// data: it stays server-internal.
-func TestExtendedServer_LGPDDataExport_NeverReturnsFirebaseToken(t *testing.T) {
+// Push-delivery tokens live in user_device_tokens and never appear on the
+// User shape returned by the LGPD data-export endpoint. The handler must
+// not surface any field named like an FCM token on User-shaped objects
+// nested in the export body.
+func TestExtendedServer_LGPDDataExport_NeverReturnsDeviceToken(t *testing.T) {
 	now := time.Now()
 	usr := &user.User{
-		ID:            "user-1",
-		Name:          "Maria",
-		Email:         "maria@example.com",
-		FirebaseToken: "secret-fcm-token-must-not-leak",
+		ID:    "user-1",
+		Name:  "Maria",
+		Email: "maria@example.com",
 	}
 	rxs := []*prescription.Prescription{{
 		ID: "rx-1", UserID: "user-1", Active: true,
@@ -272,24 +272,10 @@ func TestExtendedServer_LGPDDataExport_NeverReturnsFirebaseToken(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}
 
-	var raw map[string]any
-	if err := json.Unmarshal(rr.Body.Bytes(), &raw); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	for _, path := range []string{"user.firebase_token"} {
-		// Walk the path; a firebase_token key at any depth on a User-shaped
-		// object is a leak.
-		node := raw
-		for _, seg := range []string{"user"} {
-			child, ok := node[seg].(map[string]any)
-			if !ok {
-				continue
-			}
-			node = child
-		}
-		_ = path
-		if _, ok := node["firebase_token"]; ok {
-			t.Fatalf("firebase_token must NOT appear in LGPD data-export body, got: %s", rr.Body.String())
+	body := rr.Body.String()
+	for _, key := range []string{"firebase_token", "fcm_token"} {
+		if strings.Contains(body, key) {
+			t.Fatalf("%q must NOT appear in LGPD data-export body, got: %s", key, body)
 		}
 	}
 }

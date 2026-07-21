@@ -34,7 +34,7 @@ func TestUserRepository_CRUD(t *testing.T) {
 	repo := NewUserRepository(db)
 
 	ctx := context.Background()
-	entity, err := user.NewUser("Alice", "alice@example.com", "+100000000", "52998224725", "token", user.RoleElderly)
+	entity, err := user.NewUser("Alice", "alice@example.com", "+100000000", "52998224725", user.RoleElderly)
 	if err != nil {
 		t.Fatalf("failed to create user: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestPrescriptionRepository_CRUD(t *testing.T) {
 	repo := NewPrescriptionRepository(db)
 
 	ctx := context.Background()
-	usr, err := user.NewUser("Alice", "alice@example.com", "+100000000", "52998224725", "token", user.RoleElderly)
+	usr, err := user.NewUser("Alice", "alice@example.com", "+100000000", "52998224725", user.RoleElderly)
 	if err != nil {
 		t.Fatalf("failed to save user: %v", err)
 	}
@@ -291,14 +291,8 @@ func assertUserEqual(t *testing.T, expected *user.User, actual *user.User) {
 	if expected.Phone != actual.Phone {
 		t.Fatalf("expected phone %s, got %s", expected.Phone, actual.Phone)
 	}
-	if expected.FirebaseToken != actual.FirebaseToken {
-		t.Fatalf("expected firebase token %s, got %s", expected.FirebaseToken, actual.FirebaseToken)
-	}
 	if expected.FirebaseID != actual.FirebaseID {
 		t.Fatalf("expected firebase id %s, got %s", expected.FirebaseID, actual.FirebaseID)
-	}
-	if expected.NotificationsEnabled != actual.NotificationsEnabled {
-		t.Fatalf("expected notifications enabled %v, got %v", expected.NotificationsEnabled, actual.NotificationsEnabled)
 	}
 }
 

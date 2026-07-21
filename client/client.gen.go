@@ -23,14 +23,58 @@ const (
 	FirebaseJWTScopes firebaseJWTContextKey = "FirebaseJWT.Scopes"
 )
 
-// AuthResponse defines model for AuthResponse.
+// Defines values for CreateUserRequestRole.
+const (
+	CreateUserRequestRoleCAREGIVER CreateUserRequestRole = "CAREGIVER"
+	CreateUserRequestRoleELDERLY   CreateUserRequestRole = "ELDERLY"
+)
+
+// Valid indicates whether the value is a known member of the CreateUserRequestRole enum.
+func (e CreateUserRequestRole) Valid() bool {
+	switch e {
+	case CreateUserRequestRoleCAREGIVER:
+		return true
+	case CreateUserRequestRoleELDERLY:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RegisterRequestRole.
+const (
+	RegisterRequestRoleCAREGIVER RegisterRequestRole = "CAREGIVER"
+	RegisterRequestRoleELDERLY   RegisterRequestRole = "ELDERLY"
+)
+
+// Valid indicates whether the value is a known member of the RegisterRequestRole enum.
+func (e RegisterRequestRole) Valid() bool {
+	switch e {
+	case RegisterRequestRoleCAREGIVER:
+		return true
+	case RegisterRequestRoleELDERLY:
+		return true
+	default:
+		return false
+	}
+}
+
+// AuthResponse Authentication response returned by `/auth/login` and
+// `/auth/login/doctor`. The `token` is a Firebase ID token (JWT) that
+// must be sent as `Authorization: Bearer <token>` on subsequent
+// authenticated requests. Push notifications use device tokens managed
+// via the `/users/me/device-tokens` endpoints.
 type AuthResponse struct {
-	// Token JWT access token
+	// Token Firebase ID token (JWT) to be used as bearer token
 	Token string `json:"token"`
 	User  User   `json:"user"`
 }
 
-// CreateDoctorRequest defines model for CreateDoctorRequest.
+// CreateDoctorRequest A doctor is a semantic entity that identifies who issued a
+// prescription. Doctors are local-only: this endpoint does NOT
+// create a Firebase Auth account, does NOT require a password,
+// and the resulting Doctor has no firebase_id. Doctors cannot
+// log in to the API.
 type CreateDoctorRequest struct {
 	// Email Doctor's email address
 	Email openapi_types.Email `json:"email"`
@@ -62,18 +106,31 @@ type CreatePrescriptionRequest struct {
 
 // CreateUserRequest defines model for CreateUserRequest.
 type CreateUserRequest struct {
+	// Cpf Brazilian CPF (Cadastro de Pessoa Física), digits-only.
+	// Optional; if provided, full checksum validation runs server-side.
+	Cpf *string `json:"cpf,omitempty"`
+
 	// Email User's email address
 	Email openapi_types.Email `json:"email"`
-
-	// FirebaseToken Firebase Cloud Messaging token
-	FirebaseToken string `json:"firebase_token"`
 
 	// Name User's full name
 	Name string `json:"name"`
 
+	// Password Plaintext password. The server uses it to create the Firebase
+	// Auth account (server-side via Admin SDK) and never stores it.
+	Password string `json:"password"`
+
 	// Phone User's phone number
 	Phone string `json:"phone"`
+
+	// Role User role. `ELDERLY` (the default) receives medication reminders;
+	// `CAREGIVER` is a caretaker linked to one or more elderly users.
+	Role *CreateUserRequestRole `json:"role,omitempty"`
 }
+
+// CreateUserRequestRole User role. `ELDERLY` (the default) receives medication reminders;
+// `CAREGIVER` is a caretaker linked to one or more elderly users.
+type CreateUserRequestRole string
 
 // Doctor defines model for Doctor.
 type Doctor struct {
@@ -178,6 +235,12 @@ type Prescription struct {
 
 // RegisterRequest defines model for RegisterRequest.
 type RegisterRequest struct {
+	// Cpf Brazilian CPF (Cadastro de Pessoa Física) — 11 digits.
+	// Optional, but when present is validated using the official
+	// modulo-11 checksum and normalized to digits-only.
+	// Accepts formatted input such as "529.982.247-25".
+	Cpf *string `json:"cpf,omitempty"`
+
 	// Email User's email address
 	Email openapi_types.Email `json:"email"`
 
@@ -189,7 +252,13 @@ type RegisterRequest struct {
 
 	// Phone User's phone number
 	Phone string `json:"phone"`
+
+	// Role User role. Optional, defaults to "ELDERLY" if omitted or invalid.
+	Role *RegisterRequestRole `json:"role,omitempty"`
 }
+
+// RegisterRequestRole User role. Optional, defaults to "ELDERLY" if omitted or invalid.
+type RegisterRequestRole string
 
 // UpdateDoctorRequest defines model for UpdateDoctorRequest.
 type UpdateDoctorRequest struct {
@@ -226,23 +295,21 @@ type UpdateUserRequest struct {
 
 // User defines model for User.
 type User struct {
+	// Cpf Brazilian CPF (Cadastro de Pessoa Física), digits-only.
+	// May be empty if the user was registered without one.
+	Cpf *string `json:"cpf,omitempty"`
+
 	// CreatedAt User creation timestamp
 	CreatedAt time.Time `json:"created_at"`
 
 	// Email User's email address
 	Email openapi_types.Email `json:"email"`
 
-	// FirebaseToken Firebase Cloud Messaging token
-	FirebaseToken *string `json:"firebase_token,omitempty"`
-
 	// Id Unique user identifier
 	Id openapi_types.UUID `json:"id"`
 
 	// Name User's full name
 	Name string `json:"name"`
-
-	// NotificationsEnabled Whether notifications are enabled for this user
-	NotificationsEnabled bool `json:"notifications_enabled"`
 
 	// Phone User's phone number
 	Phone string `json:"phone"`
@@ -290,18 +357,6 @@ type ListPrescriptionsParams struct {
 	Active *bool `form:"active,omitempty" json:"active,omitempty"`
 }
 
-// UpdateFirebaseTokenJSONBody defines parameters for UpdateFirebaseToken.
-type UpdateFirebaseTokenJSONBody struct {
-	// FirebaseToken Firebase Cloud Messaging token
-	FirebaseToken string `json:"firebase_token"`
-}
-
-// ToggleNotificationsJSONBody defines parameters for ToggleNotifications.
-type ToggleNotificationsJSONBody struct {
-	// Enabled Whether notifications should be enabled
-	Enabled bool `json:"enabled"`
-}
-
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
@@ -325,12 +380,6 @@ type CreateUserJSONRequestBody = CreateUserRequest
 
 // UpdateUserJSONRequestBody defines body for UpdateUser for application/json ContentType.
 type UpdateUserJSONRequestBody = UpdateUserRequest
-
-// UpdateFirebaseTokenJSONRequestBody defines body for UpdateFirebaseToken for application/json ContentType.
-type UpdateFirebaseTokenJSONRequestBody UpdateFirebaseTokenJSONBody
-
-// ToggleNotificationsJSONRequestBody defines body for ToggleNotifications for application/json ContentType.
-type ToggleNotificationsJSONRequestBody ToggleNotificationsJSONBody
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -483,16 +532,6 @@ type ClientInterface interface {
 	UpdateUserWithBody(ctx context.Context, userId UserId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpdateUser(ctx context.Context, userId UserId, body UpdateUserJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdateFirebaseTokenWithBody request with any body
-	UpdateFirebaseTokenWithBody(ctx context.Context, userId UserId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	UpdateFirebaseToken(ctx context.Context, userId UserId, body UpdateFirebaseTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ToggleNotificationsWithBody request with any body
-	ToggleNotificationsWithBody(ctx context.Context, userId UserId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	ToggleNotifications(ctx context.Context, userId UserId, body ToggleNotificationsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) LoginWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -833,54 +872,6 @@ func (c *Client) UpdateUserWithBody(ctx context.Context, userId UserId, contentT
 
 func (c *Client) UpdateUser(ctx context.Context, userId UserId, body UpdateUserJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateUserRequest(c.Server, userId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateFirebaseTokenWithBody(ctx context.Context, userId UserId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateFirebaseTokenRequestWithBody(c.Server, userId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateFirebaseToken(ctx context.Context, userId UserId, body UpdateFirebaseTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateFirebaseTokenRequest(c.Server, userId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ToggleNotificationsWithBody(ctx context.Context, userId UserId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewToggleNotificationsRequestWithBody(c.Server, userId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ToggleNotifications(ctx context.Context, userId UserId, body ToggleNotificationsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewToggleNotificationsRequest(c.Server, userId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1690,100 +1681,6 @@ func NewUpdateUserRequestWithBody(server string, userId UserId, contentType stri
 	return req, nil
 }
 
-// NewUpdateFirebaseTokenRequest calls the generic UpdateFirebaseToken builder with application/json body
-func NewUpdateFirebaseTokenRequest(server string, userId UserId, body UpdateFirebaseTokenJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpdateFirebaseTokenRequestWithBody(server, userId, "application/json", bodyReader)
-}
-
-// NewUpdateFirebaseTokenRequestWithBody generates requests for UpdateFirebaseToken with any type of body
-func NewUpdateFirebaseTokenRequestWithBody(server string, userId UserId, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "userId", userId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/users/%s/firebase-token", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewToggleNotificationsRequest calls the generic ToggleNotifications builder with application/json body
-func NewToggleNotificationsRequest(server string, userId UserId, body ToggleNotificationsJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewToggleNotificationsRequestWithBody(server, userId, "application/json", bodyReader)
-}
-
-// NewToggleNotificationsRequestWithBody generates requests for ToggleNotifications with any type of body
-func NewToggleNotificationsRequestWithBody(server string, userId UserId, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "userId", userId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/users/%s/notifications", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -1905,16 +1802,6 @@ type ClientWithResponsesInterface interface {
 	UpdateUserWithBodyWithResponse(ctx context.Context, userId UserId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateUserResponse, error)
 
 	UpdateUserWithResponse(ctx context.Context, userId UserId, body UpdateUserJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateUserResponse, error)
-
-	// UpdateFirebaseTokenWithBodyWithResponse request with any body
-	UpdateFirebaseTokenWithBodyWithResponse(ctx context.Context, userId UserId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateFirebaseTokenResponse, error)
-
-	UpdateFirebaseTokenWithResponse(ctx context.Context, userId UserId, body UpdateFirebaseTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateFirebaseTokenResponse, error)
-
-	// ToggleNotificationsWithBodyWithResponse request with any body
-	ToggleNotificationsWithBodyWithResponse(ctx context.Context, userId UserId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ToggleNotificationsResponse, error)
-
-	ToggleNotificationsWithResponse(ctx context.Context, userId UserId, body ToggleNotificationsJSONRequestBody, reqEditors ...RequestEditorFn) (*ToggleNotificationsResponse, error)
 }
 
 type LoginResponse struct {
@@ -2590,72 +2477,6 @@ func (r UpdateUserResponse) ContentType() string {
 	return ""
 }
 
-type UpdateFirebaseTokenResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *User
-	JSON400      *BadRequest
-	JSON404      *NotFound
-	JSON500      *InternalServerError
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateFirebaseTokenResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateFirebaseTokenResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r UpdateFirebaseTokenResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type ToggleNotificationsResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *User
-	JSON400      *BadRequest
-	JSON404      *NotFound
-	JSON500      *InternalServerError
-}
-
-// Status returns HTTPResponse.Status
-func (r ToggleNotificationsResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ToggleNotificationsResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r ToggleNotificationsResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 // LoginWithBodyWithResponse request with arbitrary body returning *LoginResponse
 func (c *ClientWithResponses) LoginWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*LoginResponse, error) {
 	rsp, err := c.LoginWithBody(ctx, contentType, body, reqEditors...)
@@ -2907,40 +2728,6 @@ func (c *ClientWithResponses) UpdateUserWithResponse(ctx context.Context, userId
 		return nil, err
 	}
 	return ParseUpdateUserResponse(rsp)
-}
-
-// UpdateFirebaseTokenWithBodyWithResponse request with arbitrary body returning *UpdateFirebaseTokenResponse
-func (c *ClientWithResponses) UpdateFirebaseTokenWithBodyWithResponse(ctx context.Context, userId UserId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateFirebaseTokenResponse, error) {
-	rsp, err := c.UpdateFirebaseTokenWithBody(ctx, userId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateFirebaseTokenResponse(rsp)
-}
-
-func (c *ClientWithResponses) UpdateFirebaseTokenWithResponse(ctx context.Context, userId UserId, body UpdateFirebaseTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateFirebaseTokenResponse, error) {
-	rsp, err := c.UpdateFirebaseToken(ctx, userId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateFirebaseTokenResponse(rsp)
-}
-
-// ToggleNotificationsWithBodyWithResponse request with arbitrary body returning *ToggleNotificationsResponse
-func (c *ClientWithResponses) ToggleNotificationsWithBodyWithResponse(ctx context.Context, userId UserId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ToggleNotificationsResponse, error) {
-	rsp, err := c.ToggleNotificationsWithBody(ctx, userId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseToggleNotificationsResponse(rsp)
-}
-
-func (c *ClientWithResponses) ToggleNotificationsWithResponse(ctx context.Context, userId UserId, body ToggleNotificationsJSONRequestBody, reqEditors ...RequestEditorFn) (*ToggleNotificationsResponse, error) {
-	rsp, err := c.ToggleNotifications(ctx, userId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseToggleNotificationsResponse(rsp)
 }
 
 // ParseLoginResponse parses an HTTP response from a LoginWithResponse call
@@ -3722,100 +3509,6 @@ func ParseUpdateUserResponse(rsp *http.Response) (*UpdateUserResponse, error) {
 	}
 
 	response := &UpdateUserResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest User
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalServerError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateFirebaseTokenResponse parses an HTTP response from a UpdateFirebaseTokenWithResponse call
-func ParseUpdateFirebaseTokenResponse(rsp *http.Response) (*UpdateFirebaseTokenResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateFirebaseTokenResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest User
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalServerError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseToggleNotificationsResponse parses an HTTP response from a ToggleNotificationsWithResponse call
-func ParseToggleNotificationsResponse(rsp *http.Response) (*ToggleNotificationsResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ToggleNotificationsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

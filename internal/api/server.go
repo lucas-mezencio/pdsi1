@@ -66,8 +66,9 @@ func (s *Server) ListUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) CreateUser(w http.ResponseWriter, r *http.Request) {
-	// firebase_id / firebase_token are NEVER accepted as input. The Firebase
-	// account is created server-side via AuthenticationProvider.
+	// firebase_id is NEVER accepted as input. The Firebase account is created
+	// server-side via AuthenticationProvider. Push delivery tokens are
+	// managed separately via the device-token endpoints.
 	var body struct {
 		Name     string `json:"name"`
 		Email    string `json:"email"`
@@ -146,42 +147,6 @@ func (s *Server) DeleteUser(w http.ResponseWriter, r *http.Request, userId gen.U
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func (s *Server) UpdateFirebaseToken(w http.ResponseWriter, r *http.Request, userId gen.UserId) {
-	var body gen.UpdateFirebaseTokenJSONBody
-	if err := decodeJSON(r, &body); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request", err.Error())
-		return
-	}
-
-	updated, err := s.userCommands.UpdateFirebaseToken(r.Context(), commands.UpdateUserFirebaseTokenCommand{
-		ID:            userId.String(),
-		FirebaseToken: body.FirebaseToken,
-	})
-	if err != nil {
-		writeCommandError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, dto.UserResponseFromDomain(updated))
-}
-
-func (s *Server) ToggleNotifications(w http.ResponseWriter, r *http.Request, userId gen.UserId) {
-	var body gen.ToggleNotificationsJSONBody
-	if err := decodeJSON(r, &body); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request", err.Error())
-		return
-	}
-
-	updated, err := s.userCommands.ToggleNotifications(r.Context(), commands.ToggleUserNotificationsCommand{
-		ID:      userId.String(),
-		Enabled: body.Enabled,
-	})
-	if err != nil {
-		writeCommandError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, dto.UserResponseFromDomain(updated))
 }
 
 func (s *Server) ListDoctors(w http.ResponseWriter, r *http.Request) {
@@ -480,12 +445,11 @@ func userToGen(u *user.User) gen.User {
 		return gen.User{}
 	}
 	genUser := gen.User{
-		Name:                 u.Name,
-		Email:                openapi_types.Email(u.Email),
-		Phone:                u.Phone,
-		NotificationsEnabled: u.NotificationsEnabled,
-		CreatedAt:            u.CreatedAt,
-		UpdatedAt:            u.UpdatedAt,
+		Name:      u.Name,
+		Email:     openapi_types.Email(u.Email),
+		Phone:     u.Phone,
+		CreatedAt: u.CreatedAt,
+		UpdatedAt: u.UpdatedAt,
 	}
 	if id, err := uuid.Parse(u.ID); err == nil {
 		genUser.Id = gen.UserId(id)
