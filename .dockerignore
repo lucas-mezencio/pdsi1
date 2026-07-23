@@ -1,0 +1,40 @@
+# Git
+.git
+.gitignore
+
+# Build artifacts
+bin/
+*.exe
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Test files
+*_test.go
+tests/
+
+# Documentation
+docs/reference
+docs/diagrams
+docs/pdsi2
+*.md
+
+# Docker files
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Env files
+.env
+.env.*
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Misc
+.DS_Store
+Thumbs.db

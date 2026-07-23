@@ -1,0 +1,6 @@
+services:
+  careconnect:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    pull_policy: build

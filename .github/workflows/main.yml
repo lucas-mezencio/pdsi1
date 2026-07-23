@@ -1,0 +1,29 @@
+name: Care connect CI (pr gate)
+
+on:
+  pull_request:
+    branches: ["main"]
+jobs:
+  test:
+    name: Run Tests and Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.3"
+      - name: Install dependencies
+        run: go mod tidy
+
+      - name: Run Unit Tests
+        run: go test -v ./...
+
+      - name: Check Test Coverage
+        run: |
+          go test -coverprofile=coverage.out ./...
+          COVERAGE=$(go tool cover -func=coverage.out | grep total: | grep -Eo '[0-9]+\.[0-9]+')
+          echo "Coverage is $COVERAGE%"
+          if (( $(echo "$COVERAGE < 80.0" | bc -l) )); then echo "Coverage under 80%!" && exit 1; fi
