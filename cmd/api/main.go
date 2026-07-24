@@ -150,7 +150,7 @@ func main() {
 	eventStore := database.NewNotificationEventStore(db)
 
 	var authProvider commands.AuthenticationProvider
-	firebaseAuthService, err := firebaseauth.NewService(ctx, appConfig.FirebaseCredentialsFile, appConfig.FirebaseWebAPIKey)
+	firebaseAuthService, err := firebaseauth.NewService(ctx, appConfig.FirebaseCredentialsFile, appConfig.FirebaseCredentialsJSON, appConfig.FirebaseWebAPIKey)
 	if err != nil {
 		if errors.Is(err, application.ErrAuthNotConfigured) {
 			slog.Warn("firebase auth disabled: set FIREBASE_CREDENTIALS_FILE and FIREBASE_WEB_API_KEY")
