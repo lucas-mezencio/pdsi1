@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -22,6 +23,7 @@ type Config struct {
 	DemoPrescriptionSecret  string
 	LogFormat               string
 	LogLevel                string
+	EnableTestPage          bool
 }
 
 const (
@@ -51,6 +53,7 @@ func Load() (*Config, error) {
 		DemoPrescriptionSecret:  envString("DEMO_PRESCRIPTION_SECRET", ""),
 		LogFormat:               envString("LOG_FORMAT", defaultLogFormat),
 		LogLevel:                envString("LOG_LEVEL", defaultLogLevel),
+		EnableTestPage:          envBool("ENABLE_TEST_PAGE", false),
 	}, nil
 }
 
@@ -60,6 +63,18 @@ func envString(key, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func envBool(key string, fallback bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	b, err := strconv.ParseBool(value)
+	if err != nil {
+		return fallback
+	}
+	return b
 }
 
 func loadDotEnv(path string) error {

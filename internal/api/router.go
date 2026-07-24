@@ -64,13 +64,16 @@ func NewRouter(server gen.ServerInterface, ext *ExtendedServer, firebaseAuth *au
 			})
 		})
 
-		// Browser test page for device tokens (Phase 1)
-		testCfg := TestNotificationsConfig{
-			FirebaseWebConfig:   cfg.FirebaseWebConfig,
-			FirebaseWebVAPIDKey: cfg.FirebaseWebVAPIDKey,
+		// Browser test page for device tokens. Only registered when
+		// ENABLE_TEST_PAGE=true so the dev tooling is unreachable in production.
+		if cfg.EnableTestPage {
+			testCfg := TestNotificationsConfig{
+				FirebaseWebConfig:   cfg.FirebaseWebConfig,
+				FirebaseWebVAPIDKey: cfg.FirebaseWebVAPIDKey,
+			}
+			r.Get("/test-notifications", TestNotificationsPage(testCfg))
+			r.Get("/test-notifications/config", TestNotificationsConfigJSON(testCfg))
 		}
-		r.Get("/test-notifications", TestNotificationsPage(testCfg))
-		r.Get("/test-notifications/config", TestNotificationsConfigJSON(testCfg))
 	})
 
 	return router
