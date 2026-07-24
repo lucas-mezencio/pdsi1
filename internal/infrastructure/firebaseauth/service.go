@@ -27,33 +27,39 @@ type Service struct {
 	httpClient *http.Client
 }
 
-func NewService(ctx context.Context, credentialsFile, apiKey string) (*Service, error) {
-	if strings.TrimSpace(credentialsFile) == "" || strings.TrimSpace(apiKey) == "" {
+func NewService(ctx context.Context, credentialsFile, credentialsJSON, apiKey string) (*Service, error) {
+	if strings.TrimSpace(credentialsJSON) == "" && strings.TrimSpace(credentialsFile) == "" {
+		return nil, application.ErrAuthNotConfigured
+	}
+	if strings.TrimSpace(apiKey) == "" {
 		return nil, application.ErrAuthNotConfigured
 	}
 
-	credentialsJSON, err := os.ReadFile(credentialsFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read firebase credentials file: %w", err)
+	var creds []byte
+	if strings.TrimSpace(credentialsJSON) != "" {
+		creds = []byte(credentialsJSON)
+	} else {
+		var err error
+		creds, err = os.ReadFile(credentialsFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read firebase credentials file: %w", err)
+		}
 	}
 
-	app, err := firebase.NewApp(ctx, nil, option.WithAuthCredentialsJSON(option.ServiceAccount, credentialsJSON))
+	app, err := firebase.NewApp(ctx, nil, option.WithCredentialsJSON(creds))
 	if err != nil {
 		return nil, fmt.Errorf("firebase init failed: %w", err)
 	}
-
 	authClient, err := app.Auth(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("firebase auth init failed: %w", err)
 	}
-
 	return &Service{
 		authClient: authClient,
 		apiKey:     apiKey,
 		httpClient: &http.Client{Timeout: 10 * time.Second},
 	}, nil
 }
-
 func (s *Service) CreateUser(ctx context.Context, email, password string) (string, error) {
 	userRecord, err := s.authClient.CreateUser(ctx, (&firebaseadminauth.UserToCreate{}).
 		Email(email).

@@ -10,16 +10,17 @@ import (
 
 // Config holds application configuration values.
 type Config struct {
-	DatabaseURL             string
-	HTTPAddr                string
-	RedisAddr               string
-	NotifierMode            string
-	FirebaseCredentialsFile string
-	FirebaseWebAPIKey       string
-	NotificationLookback    time.Duration
-	DemoPrescriptionSecret  string
-	LogFormat               string
-	LogLevel                string
+	DatabaseURL              string
+	HTTPAddr                 string
+	RedisAddr                string
+	NotifierMode             string
+	FirebaseCredentialsFile  string
+	FirebaseCredentialsJSON  string
+	FirebaseWebAPIKey        string
+	NotificationLookback     time.Duration
+	DemoPrescriptionSecret   string
+	LogFormat                string
+	LogLevel                 string
 }
 
 const (
@@ -35,18 +36,18 @@ const (
 // Load loads configuration from .env (if present) and environment variables.
 func Load() (*Config, error) {
 	_ = loadDotEnv(".env")
-
 	return &Config{
-		DatabaseURL:             envString("DATABASE_URL", defaultDSN),
-		HTTPAddr:                envString("HTTP_ADDR", defaultAddr),
-		RedisAddr:               envString("REDIS_ADDR", defaultRedisAddr),
-		NotifierMode:            envString("NOTIFIER_MODE", defaultNotifierMode),
-		FirebaseCredentialsFile: envString("FIREBASE_CREDENTIALS_FILE", ""),
-		FirebaseWebAPIKey:       envString("FIREBASE_WEB_API_KEY", ""),
-		NotificationLookback:    defaultNotificationLookback,
-		DemoPrescriptionSecret:  envString("DEMO_PRESCRIPTION_SECRET", ""),
-		LogFormat:               envString("LOG_FORMAT", defaultLogFormat),
-		LogLevel:                envString("LOG_LEVEL", defaultLogLevel),
+		DatabaseURL:              envString("DATABASE_URL", defaultDSN),
+		HTTPAddr:                 envString("HTTP_ADDR", defaultAddr),
+		RedisAddr:                envString("REDIS_ADDR", defaultRedisAddr),
+		NotifierMode:             envString("NOTIFIER_MODE", defaultNotifierMode),
+		FirebaseCredentialsFile:  envString("FIREBASE_CREDENTIALS_FILE", ""),
+		FirebaseCredentialsJSON:  envString("FIREBASE_CREDENTIALS_JSON", ""),
+		FirebaseWebAPIKey:        envString("FIREBASE_WEB_API_KEY", ""),
+		NotificationLookback:     defaultNotificationLookback,
+		DemoPrescriptionSecret:   envString("DEMO_PRESCRIPTION_SECRET", ""),
+		LogFormat:                envString("LOG_FORMAT", defaultLogFormat),
+		LogLevel:                 envString("LOG_LEVEL", defaultLogLevel),
 	}, nil
 }
 
@@ -84,6 +85,5 @@ func loadDotEnv(path string) error {
 			_ = os.Setenv(key, value)
 		}
 	}
-
 	return scanner.Err()
 }
