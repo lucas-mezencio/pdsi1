@@ -24,6 +24,8 @@ tags:
     description: Prescription management and notification scheduling
   - name: Auth
     description: Authentication operations
+  - name: DeviceTokens
+    description: FCM device-token registration and management (multi-device)
 
 security:
   - FirebaseJWT: []
@@ -222,6 +224,90 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
+
+  /users/me/device-tokens:
+    post:
+      tags:
+        - DeviceTokens
+      summary: Register a device token
+      description: |
+        Register or re-register an FCM device token for the authenticated user.
+        Idempotent for the same (user, token) pair; returns 409 if the token
+        already belongs to a different user.
+      operationId: registerDeviceToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterDeviceTokenRequest'
+      responses:
+        '201':
+          description: Token registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceToken'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    get:
+      tags:
+        - DeviceTokens
+      summary: List the caller's device tokens
+      operationId: listDeviceTokens
+      responses:
+        '200':
+          description: Device tokens for the authenticated user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeviceToken'
+
+  /users/me/device-tokens/{tokenId}:
+    parameters:
+      - name: tokenId
+        in: path
+        required: true
+        schema:
+          type: string
+    delete:
+      tags:
+        - DeviceTokens
+      summary: Delete a device token
+      operationId: deleteDeviceToken
+      responses:
+        '204':
+          description: Deleted
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+        - DeviceTokens
+      summary: Enable or disable a device token
+      operationId: setDeviceTokenEnabled
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetDeviceTokenEnabledRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceToken'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   # LGPD data-export endpoint is implemented as an extended route outside
   # the generated OpenAPI server (see internal/api/router.go). The response
@@ -1183,6 +1269,42 @@ components:
         - charges
         - invitations
 
+    DeviceToken:
+      type: object
+      required: [id, user_id, enabled, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        last_used_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    RegisterDeviceTokenRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          minLength: 4
+
+    SetDeviceTokenEnabledRequest:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+
   responses:
     BadRequest:
       description: Bad request - invalid input
@@ -1203,6 +1325,26 @@ components:
           example:
             error: "Not found"
             details: "User with ID '123' not found"
+
+    Forbidden:
+      description: Forbidden - the caller is not allowed to access this resource
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "access denied"
+            details: "Token belongs to another user"
+
+    Conflict:
+      description: Resource already exists or belongs to another user
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "conflict"
+            details: "Token is already registered to a different user"
 
     Unauthorized:
       description: |
