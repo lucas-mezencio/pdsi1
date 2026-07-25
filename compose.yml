@@ -47,7 +47,7 @@ services:
 
   careconnect:
     image: ghcr.io/lucas-mezencio/pdsi1/careconnect:latest
-    # pull_policy: always
+    pull_policy: always
     env_file:
       - path: .env
         required: true
