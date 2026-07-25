@@ -52,8 +52,21 @@
 let firebaseConfig = null;
 let vapidKey = "";
 fetch("/api/v1/test-notifications/config")
-  .then((r) => r.ok ? r.json() : null)
-  .then((cfg) => { if (cfg) { firebaseConfig = cfg.firebase_config; vapidKey = cfg.vapid_key || ""; } });
+  .then((r) => {
+    console.log("[test-notifications] config response status:", r.status);
+    if (r.status === 204) return null;
+    if (!r.ok) return null;
+    return r.text().then((t) => t ? JSON.parse(t) : null);
+  })
+  .then((cfg) => {
+    console.log("[test-notifications] parsed config:", cfg);
+    if (cfg) {
+      firebaseConfig = cfg.firebase_config;
+      vapidKey = cfg.vapid_key || "";
+      console.log("[test-notifications] firebaseConfig set:", firebaseConfig);
+      console.log("[test-notifications] vapidKey set:", vapidKey ? "(present)" : "(empty)");
+    }
+  });
 
 const state = { token: null, bearer: null, userId: null };
 
@@ -80,28 +93,86 @@ document.getElementById("login-btn").onclick = async () => {
     status.classList.add("ok");
     status.textContent = "Logged in.";
     document.getElementById("firebase-section").classList.remove("hidden");
-    if (!firebaseConfig) {
-      document.getElementById("permission-status").textContent =
-        "FIREBASE_WEB_CONFIG is not set on the server; cannot register a token.";
-      return;
-    }
-    const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
-    const { getMessaging, getToken } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js");
-    window.__fbApp = initializeApp(firebaseConfig);
-    window.__fbMsg = getMessaging();
   } catch (e) {
     status.classList.add("err");
     status.textContent = `Login failed: ${e.message}`;
+    return;
+  }
+
+  if (!firebaseConfig) {
+    document.getElementById("permission-status").textContent =
+      "FIREBASE_WEB_CONFIG is not set on the server; cannot register a token.";
+    return;
+  }
+
+  try {
+    const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+    const { getMessaging } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js");
+    window.__fbApp = initializeApp(firebaseConfig);
+    window.__fbMsg = getMessaging();
+  } catch (e) {
+    document.getElementById("permission-status").textContent =
+      `Firebase init failed: ${e.message}`;
   }
 };
 
 document.getElementById("permission-btn").onclick = async () => {
   const status = document.getElementById("permission-status");
+  console.log("[test-notifications] permission button clicked");
+
   const perm = await Notification.requestPermission();
+  console.log("[test-notifications] Notification.permission:", perm);
   status.textContent = `permission=${perm}`;
   if (perm !== "granted") return;
+
+  if (!window.__fbMsg) {
+    status.textContent = "Firebase not initialized; cannot get FCM token.";
+    return;
+  }
+
+  console.log("[test-notifications] vapidKey:", vapidKey ? "(present)" : "(empty)");
+
+  // Register our SW explicitly at Firebase's expected scope and wait for
+  // it to become active. Firebase's getToken() calls PushManager.subscribe
+  // synchronously after register, which loses the race against SW
+  // activation. Registering ourselves first lets us wait for activation
+  // before passing the registration to getToken.
+  let registration;
+  try {
+    registration = await navigator.serviceWorker.register(
+      '/firebase-messaging-sw.js',
+      { scope: '/firebase-cloud-messaging-push-scope' }
+    );
+    console.log(
+      "[test-notifications] SW registered:",
+      registration.scope,
+      "state=",
+      registration.active ? registration.active.state : "(no active worker yet)"
+    );
+    if (!registration.active) {
+      await navigator.serviceWorker.ready;
+      console.log("[test-notifications] SW ready (active)");
+    }
+  } catch (e) {
+    console.error("[test-notifications] SW registration failed:", e);
+    status.textContent = `Service worker registration failed: ${e.message}`;
+    return;
+  }
+
+  console.log("[test-notifications] calling getToken with explicit registration");
   const { getToken } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js");
-  const token = await getToken(window.__fbMsg, { vapidKey });
+  let token;
+  try {
+    token = await getToken(window.__fbMsg, {
+      vapidKey,
+      serviceWorkerRegistration: registration,
+    });
+  } catch (e) {
+    console.error("[test-notifications] getToken failed:", e);
+    status.textContent = `getToken failed: ${e.message}`;
+    return;
+  }
+  console.log("[test-notifications] got token:", token ? token.slice(0, 20) + "..." : "(empty)");
   state.token = token;
   document.getElementById("fcm-token").classList.remove("hidden");
   document.getElementById("fcm-token").textContent = token;

@@ -32,6 +32,11 @@ func NewRouter(server gen.ServerInterface, ext *ExtendedServer, firebaseAuth *au
 	// Serve Swagger UI at /api/v1/docs
 	router.Mount("/api/v1/docs", DocsHandler())
 
+	// Minimal FCM service worker for the browser test page. Firebase's
+	// getToken() registers a default SW at /firebase-cloud-messaging-push-scope
+	// whose script must be reachable without auth.
+	router.Get("/firebase-messaging-sw.js", FirebaseMessagingServiceWorker())
+
 	// Register additional routes not covered by the generated spec.
 	router.Route("/api/v1", func(r chi.Router) {
 		// Invitations

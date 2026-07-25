@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -293,9 +294,12 @@ func (s *ExtendedServer) RegisterDeviceToken(w http.ResponseWriter, r *http.Requ
 		Token string `json:"token"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
+		log.Printf("device-token POST decode failed: %v", err)
 		writeError(w, http.StatusBadRequest, "invalid request", err.Error())
 		return
 	}
+	caller := callerUserID(r)
+	log.Printf("device-token POST: caller=%q token_len=%d", caller, len(body.Token))
 	if body.Token == "" {
 		writeError(w, http.StatusBadRequest, "invalid request", "token is required")
 		return
@@ -303,24 +307,30 @@ func (s *ExtendedServer) RegisterDeviceToken(w http.ResponseWriter, r *http.Requ
 
 	saved, err := s.dtCommands.RegisterDeviceToken(r.Context(),
 		commands.RegisterDeviceTokenCommand{
-			CallerFirebaseID: callerUserID(r),
+			CallerFirebaseID: caller,
 			Token:            body.Token,
 		})
 	if err != nil {
+		log.Printf("device-token POST failed: caller=%q err=%v", caller, err)
 		writeExtendedError(w, err)
 		return
 	}
+	log.Printf("device-token POST succeeded: id=%s caller=%q", saved.ID, caller)
 	writeJSON(w, http.StatusCreated, dto.DeviceTokenResponseFromDomain(saved))
 }
 
 // GET /api/v1/users/me/device-tokens
 func (s *ExtendedServer) ListDeviceTokens(w http.ResponseWriter, r *http.Request) {
+	caller := callerUserID(r)
+	log.Printf("device-token GET: caller=%q", caller)
 	out, err := s.dtQueries.ListDeviceTokens(r.Context(),
-		queries.ListDeviceTokensQuery{CallerFirebaseID: callerUserID(r)})
+		queries.ListDeviceTokensQuery{CallerFirebaseID: caller})
 	if err != nil {
+		log.Printf("device-token GET failed: caller=%q err=%v", caller, err)
 		writeExtendedError(w, err)
 		return
 	}
+	log.Printf("device-token GET succeeded: caller=%q count=%d", caller, len(out))
 	resp := make([]dto.DeviceTokenResponse, 0, len(out))
 	for _, t := range out {
 		resp = append(resp, dto.DeviceTokenResponseFromDomain(t))
@@ -331,41 +341,50 @@ func (s *ExtendedServer) ListDeviceTokens(w http.ResponseWriter, r *http.Request
 // DELETE /api/v1/users/me/device-tokens/{tokenId}
 func (s *ExtendedServer) DeleteDeviceToken(w http.ResponseWriter, r *http.Request) {
 	tokenID := chi.URLParam(r, "tokenId")
+	caller := callerUserID(r)
+	log.Printf("device-token DELETE: caller=%q tokenID=%q", caller, tokenID)
 	if tokenID == "" {
 		writeError(w, http.StatusBadRequest, "invalid request", "tokenId is required")
 		return
 	}
 	if err := s.dtCommands.DeleteDeviceToken(r.Context(),
 		commands.DeleteDeviceTokenCommand{
-			CallerFirebaseID: callerUserID(r),
+			CallerFirebaseID: caller,
 			TokenID:          tokenID,
 		}); err != nil {
+		log.Printf("device-token DELETE failed: caller=%q tokenID=%q err=%v", caller, tokenID, err)
 		writeExtendedError(w, err)
 		return
 	}
+	log.Printf("device-token DELETE succeeded: caller=%q tokenID=%q", caller, tokenID)
 	w.WriteHeader(http.StatusNoContent)
 }
 
 // PATCH /api/v1/users/me/device-tokens/{tokenId}/enabled
 func (s *ExtendedServer) SetDeviceTokenEnabled(w http.ResponseWriter, r *http.Request) {
 	tokenID := chi.URLParam(r, "tokenId")
+	caller := callerUserID(r)
 	var body struct {
 		Enabled bool `json:"enabled"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
+		log.Printf("device-token PATCH decode failed: caller=%q tokenID=%q err=%v", caller, tokenID, err)
 		writeError(w, http.StatusBadRequest, "invalid request", err.Error())
 		return
 	}
+	log.Printf("device-token PATCH: caller=%q tokenID=%q enabled=%v", caller, tokenID, body.Enabled)
 	updated, err := s.dtCommands.SetDeviceTokenEnabled(r.Context(),
 		commands.SetDeviceTokenEnabledCommand{
-			CallerFirebaseID: callerUserID(r),
+			CallerFirebaseID: caller,
 			TokenID:          tokenID,
 			Enabled:          body.Enabled,
 		})
 	if err != nil {
+		log.Printf("device-token PATCH failed: caller=%q tokenID=%q err=%v", caller, tokenID, err)
 		writeExtendedError(w, err)
 		return
 	}
+	log.Printf("device-token PATCH succeeded: caller=%q tokenID=%q enabled=%v", caller, tokenID, updated.Enabled)
 	writeJSON(w, http.StatusOK, dto.DeviceTokenResponseFromDomain(updated))
 }
 

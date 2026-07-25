@@ -45,6 +45,7 @@ var publicPaths = map[string]bool{
 	"/api/v1/health":                        true, // health check
 	"/api/v1/test-notifications":            true, // dev-only browser test page (only registered when ENABLE_TEST_PAGE=true; see router.go)
 	"/api/v1/test-notifications/config":     true, // dev-only browser test page config endpoint
+	"/firebase-messaging-sw.js":             true, // FCM service worker for the test page (must be auth-free so Firebase's default registration can fetch it)
 }
 
 func isPublicPath(path string) bool {
