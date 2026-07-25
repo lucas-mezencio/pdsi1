@@ -107,9 +107,22 @@ document.getElementById("login-btn").onclick = async () => {
 
   try {
     const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
-    const { getMessaging } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js");
+    const { getMessaging, onMessage } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js");
     window.__fbApp = initializeApp(firebaseConfig);
     window.__fbMsg = getMessaging();
+    onMessage(window.__fbMsg, (payload) => {
+      console.log("[test-notifications] onMessage:", payload);
+      const n = payload.notification || {};
+      try {
+        new Notification(n.title || 'Medication Reminder', {
+          body: n.body || '',
+          icon: n.icon || '/icon.png',
+          data: payload.data || {},
+        });
+      } catch (e) {
+        console.error("[test-notifications] foreground Notification failed:", e);
+      }
+    });
   } catch (e) {
     document.getElementById("permission-status").textContent =
       `Firebase init failed: ${e.message}`;
