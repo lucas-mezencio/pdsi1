@@ -40,7 +40,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	appConfig, err := config.Load()
+	appConfig, err := config.Load(".env")
 	if err != nil {
 		log.Printf("config load failed: %v", err)
 		return

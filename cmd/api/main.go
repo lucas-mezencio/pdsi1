@@ -53,19 +53,12 @@ func setupLogger(cfg config.Config) {
 	slog.SetDefault(slog.New(handler))
 }
 
-// newNotificationSender builds the configured notification.Sender. Returns an
-// error for unrecoverable misconfiguration (unknown mode, firebase init
-// failure) so main can fail fast with the same os.Exit(1) pattern used by
-// every other init above.
+// newNotificationSender builds the Firebase Admin SDK notification.Sender.
+// Returns an error if the credentials file is missing or Firebase init fails,
+// so main can fail fast with the same os.Exit(1) pattern used by every other
+// init above.
 func newNotificationSender(ctx context.Context, cfg config.Config) (notification.Sender, error) {
-	switch cfg.NotifierMode {
-	case "dev":
-		return &notification.DummySender{}, nil
-	case "ready", "":
-		return notification.NewFirebaseSender(ctx, cfg.FirebaseCredentialsFile)
-	default:
-		return nil, fmt.Errorf("unknown notifier mode %q", cfg.NotifierMode)
-	}
+	return notification.NewFirebaseSender(ctx, cfg.FirebaseCredentialsFile)
 }
 
 func main() {
@@ -74,7 +67,7 @@ func main() {
 	//
 	ctx := context.Background()
 
-	appConfig, err := config.Load()
+	appConfig, err := config.Load(".env")
 	if err != nil {
 		// Logger not configured yet — fall back to stdlib for this single message.
 		log.Fatalf("config load failed: %v", err)

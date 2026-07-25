@@ -14,7 +14,6 @@ type Config struct {
 	DatabaseURL             string
 	HTTPAddr                string
 	RedisAddr               string
-	NotifierMode            string
 	FirebaseCredentialsFile string
 	FirebaseWebAPIKey       string
 	FirebaseWebConfig       string
@@ -30,21 +29,25 @@ const (
 	defaultAddr                 = ":8080"
 	defaultDSN                  = "postgres://mednotify:mednotify@localhost:5432/mednotify?sslmode=disable"
 	defaultRedisAddr            = "localhost:6379"
-	defaultNotifierMode         = "dev"
 	defaultNotificationLookback = 2 * time.Hour
 	defaultLogFormat            = "text"
 	defaultLogLevel             = "info"
 )
 
-// Load loads configuration from .env (if present) and environment variables.
-func Load() (*Config, error) {
-	_ = loadDotEnv(".env")
-
+// Load loads configuration from the given dotenv file (if present) and the
+// process environment. Pass "" to skip dotenv loading. Callers should pass
+// a path relative to the process's CWD.
+//
+// cmd/api passes ".env"; cmd/testnotify passes "cmd/testnotify/.env" so the
+// test binary can use localhost URLs without polluting the API's env file.
+func Load(dotenvPath string) (*Config, error) {
+	if dotenvPath != "" {
+		_ = loadDotEnv(dotenvPath)
+	}
 	return &Config{
 		DatabaseURL:             envString("DATABASE_URL", defaultDSN),
 		HTTPAddr:                envString("HTTP_ADDR", defaultAddr),
 		RedisAddr:               envString("REDIS_ADDR", defaultRedisAddr),
-		NotifierMode:            envString("NOTIFIER_MODE", defaultNotifierMode),
 		FirebaseCredentialsFile: envString("FIREBASE_CREDENTIALS_FILE", ""),
 		FirebaseWebAPIKey:       envString("FIREBASE_WEB_API_KEY", ""),
 		FirebaseWebConfig:       envString("FIREBASE_WEB_CONFIG", ""),

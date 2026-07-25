@@ -66,17 +66,15 @@ make compose/infra   # Start postgres and redis only
 
 ## Notifications
 
-The service supports two notifier modes:
-
-- `dev`: uses a dummy sender that prints notifications to stdout.
-- `ready` (or empty): sends notifications via Firebase Cloud Messaging.
-
+The service sends notifications exclusively via Firebase Cloud Messaging.
 Set in `.env`:
 
 ```bash
-NOTIFIER_MODE=dev
 FIREBASE_CREDENTIALS_FILE=/path/to/firebase-service-account.json
 ```
+
+If `FIREBASE_CREDENTIALS_FILE` is missing or points at a non-existent file,
+the API fails fast at startup with `firebase: firebase credentials file is required`.
 
 ### Real FCM Test Example
 
@@ -88,7 +86,7 @@ Prereqs:
 Run the API with Firebase enabled:
 
 ```bash
-NOTIFIER_MODE=ready FIREBASE_CREDENTIALS_FILE=/path/to/firebase-service-account.json go run ./cmd/api
+FIREBASE_CREDENTIALS_FILE=/path/to/firebase-service-account.json go run ./cmd/api
 ```
 
 Then create a user/doctor/prescription that fires in seconds (replace `<FCM_TOKEN>`):

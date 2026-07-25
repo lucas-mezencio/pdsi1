@@ -24,7 +24,7 @@ func main() {
 		log.Fatalf("-user-id is required")
 	}
 
-	cfg, err := config.Load()
+	cfg, err := config.Load("cmd/testnotify/.env")
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
@@ -41,16 +41,9 @@ func main() {
 	tokenRepo := database.NewDeviceTokenRepository(db)
 	lookup := notification.NewPostgresLookup(tokenRepo)
 
-	var sender notification.Sender
-	switch cfg.NotifierMode {
-	case "dev":
-		sender = &notification.DummySender{}
-	default:
-		fs, err := notification.NewFirebaseSender(ctx, cfg.FirebaseCredentialsFile)
-		if err != nil {
-			log.Fatalf("firebase: %v", err)
-		}
-		sender = fs
+	sender, err := notification.NewFirebaseSender(ctx, cfg.FirebaseCredentialsFile)
+	if err != nil {
+		log.Fatalf("firebase: %v", err)
 	}
 
 	tokens, err := lookup.ActiveTokens(ctx, *userID)
