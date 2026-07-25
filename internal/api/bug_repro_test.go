@@ -284,9 +284,8 @@ func TestListUsers_NeverReturnsFirebaseToken(t *testing.T) {
 	server, userRepo, _ := newBugReproServer()
 	userRepo.items = append(userRepo.items, &user.User{
 		ID: "u1", Name: "Alice", Email: "a@example.com", Phone: "+1",
-		FirebaseID:    "firebase-uid-1",
-		FirebaseToken: "secret-fcm-token",
-		Role:          user.RoleElderly,
+		FirebaseID: "firebase-uid-1",
+		Role:       user.RoleElderly,
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/users", nil)

@@ -90,9 +90,8 @@ func (s *Service) DeleteUser(ctx context.Context, firebaseID string) error {
 
 // SignIn authenticates the user against Firebase Identity Toolkit and returns
 // the Firebase UID plus the ID token (JWT) to be used as the API auth/bearer
-// token. The ID token is the value the caller should expose to clients; the
-// firebase_token field on the user model is the FCM device token used for push
-// notifications and is unrelated.
+// token. The ID token is the value the caller should expose to clients; push
+// delivery tokens are managed separately via the device-token endpoints.
 func (s *Service) SignIn(ctx context.Context, email, password string) (string, string, error) {
 	requestBody, err := json.Marshal(map[string]any{
 		"email":             email,

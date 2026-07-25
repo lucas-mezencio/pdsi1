@@ -13,12 +13,12 @@ func TestUserRepository_Save_EmptyFirebaseIDDoesNotCollide(t *testing.T) {
 	repo := NewUserRepository(db)
 	ctx := context.Background()
 
-	first, err := user.NewUser("Alice", "alice@example.com", "+100000000", "52998224725", "token", user.RoleElderly)
+	first, err := user.NewUser("Alice", "alice@example.com", "+100000000", "52998224725", user.RoleElderly)
 	if err != nil {
 		t.Fatalf("failed to create first user: %v", err)
 	}
 
-	second, err := user.NewUser("Bob", "bob@example.com", "+100000001", "39053344705", "token", user.RoleElderly)
+	second, err := user.NewUser("Bob", "bob@example.com", "+100000001", "39053344705", user.RoleElderly)
 	if err != nil {
 		t.Fatalf("failed to create second user: %v", err)
 	}

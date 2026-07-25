@@ -4,6 +4,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -77,12 +78,6 @@ type ServerInterface interface {
 	// Update user
 	// (PUT /users/{userId})
 	UpdateUser(w http.ResponseWriter, r *http.Request, userId UserId)
-	// Update Firebase token
-	// (PATCH /users/{userId}/firebase-token)
-	UpdateFirebaseToken(w http.ResponseWriter, r *http.Request, userId UserId)
-	// Toggle notifications
-	// (POST /users/{userId}/notifications)
-	ToggleNotifications(w http.ResponseWriter, r *http.Request, userId UserId)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -215,18 +210,6 @@ func (_ Unimplemented) UpdateUser(w http.ResponseWriter, r *http.Request, userId
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Update Firebase token
-// (PATCH /users/{userId}/firebase-token)
-func (_ Unimplemented) UpdateFirebaseToken(w http.ResponseWriter, r *http.Request, userId UserId) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Toggle notifications
-// (POST /users/{userId}/notifications)
-func (_ Unimplemented) ToggleNotifications(w http.ResponseWriter, r *http.Request, userId UserId) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
 // ServerInterfaceWrapper converts contexts to parameters.
 type ServerInterfaceWrapper struct {
 	Handler            ServerInterface
@@ -281,6 +264,12 @@ func (siw *ServerInterfaceWrapper) Register(w http.ResponseWriter, r *http.Reque
 // ListDoctors operation middleware
 func (siw *ServerInterfaceWrapper) ListDoctors(w http.ResponseWriter, r *http.Request) {
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, FirebaseJWTScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListDoctors(w, r)
 	}))
@@ -294,6 +283,12 @@ func (siw *ServerInterfaceWrapper) ListDoctors(w http.ResponseWriter, r *http.Re
 
 // CreateDoctor operation middleware
 func (siw *ServerInterfaceWrapper) CreateDoctor(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, FirebaseJWTScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreateDoctor(w, r)
@@ -321,6 +316,12 @@ func (siw *ServerInterfaceWrapper) DeleteDoctor(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, FirebaseJWTScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeleteDoctor(w, r, doctorId)
 	}))
@@ -347,6 +348,12 @@ func (siw *ServerInterfaceWrapper) GetDoctorById(w http.ResponseWriter, r *http.
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, FirebaseJWTScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetDoctorById(w, r, doctorId)
 	}))
@@ -372,6 +379,12 @@ func (siw *ServerInterfaceWrapper) UpdateDoctor(w http.ResponseWriter, r *http.R
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "doctorId", Err: err})
 		return
 	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, FirebaseJWTScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UpdateDoctor(w, r, doctorId)
@@ -403,6 +416,12 @@ func (siw *ServerInterfaceWrapper) ListPrescriptions(w http.ResponseWriter, r *h
 
 	var err error
 	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, FirebaseJWTScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ListPrescriptionsParams
@@ -460,6 +479,12 @@ func (siw *ServerInterfaceWrapper) ListPrescriptions(w http.ResponseWriter, r *h
 // CreatePrescription operation middleware
 func (siw *ServerInterfaceWrapper) CreatePrescription(w http.ResponseWriter, r *http.Request) {
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, DemoSecretScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreatePrescription(w, r)
 	}))
@@ -485,6 +510,12 @@ func (siw *ServerInterfaceWrapper) DeletePrescription(w http.ResponseWriter, r *
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "prescriptionId", Err: err})
 		return
 	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, FirebaseJWTScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeletePrescription(w, r, prescriptionId)
@@ -512,6 +543,12 @@ func (siw *ServerInterfaceWrapper) GetPrescriptionById(w http.ResponseWriter, r 
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, FirebaseJWTScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetPrescriptionById(w, r, prescriptionId)
 	}))
@@ -537,6 +574,12 @@ func (siw *ServerInterfaceWrapper) UpdatePrescription(w http.ResponseWriter, r *
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "prescriptionId", Err: err})
 		return
 	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, FirebaseJWTScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UpdatePrescription(w, r, prescriptionId)
@@ -564,6 +607,12 @@ func (siw *ServerInterfaceWrapper) ActivatePrescription(w http.ResponseWriter, r
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, FirebaseJWTScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ActivatePrescription(w, r, prescriptionId)
 	}))
@@ -590,6 +639,12 @@ func (siw *ServerInterfaceWrapper) DeactivatePrescription(w http.ResponseWriter,
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, FirebaseJWTScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeactivatePrescription(w, r, prescriptionId)
 	}))
@@ -604,6 +659,12 @@ func (siw *ServerInterfaceWrapper) DeactivatePrescription(w http.ResponseWriter,
 // ListUsers operation middleware
 func (siw *ServerInterfaceWrapper) ListUsers(w http.ResponseWriter, r *http.Request) {
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, FirebaseJWTScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListUsers(w, r)
 	}))
@@ -617,6 +678,12 @@ func (siw *ServerInterfaceWrapper) ListUsers(w http.ResponseWriter, r *http.Requ
 
 // CreateUser operation middleware
 func (siw *ServerInterfaceWrapper) CreateUser(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, FirebaseJWTScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreateUser(w, r)
@@ -644,6 +711,12 @@ func (siw *ServerInterfaceWrapper) DeleteUser(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, FirebaseJWTScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeleteUser(w, r, userId)
 	}))
@@ -669,6 +742,12 @@ func (siw *ServerInterfaceWrapper) GetUserById(w http.ResponseWriter, r *http.Re
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
 		return
 	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, FirebaseJWTScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetUserById(w, r, userId)
@@ -696,60 +775,14 @@ func (siw *ServerInterfaceWrapper) UpdateUser(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, FirebaseJWTScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UpdateUser(w, r, userId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// UpdateFirebaseToken operation middleware
-func (siw *ServerInterfaceWrapper) UpdateFirebaseToken(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "userId" -------------
-	var userId UserId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "userId", chi.URLParam(r, "userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.UpdateFirebaseToken(w, r, userId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// ToggleNotifications operation middleware
-func (siw *ServerInterfaceWrapper) ToggleNotifications(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "userId" -------------
-	var userId UserId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "userId", chi.URLParam(r, "userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ToggleNotifications(w, r, userId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -934,12 +967,6 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/users/{userId}", wrapper.UpdateUser)
-	})
-	r.Group(func(r chi.Router) {
-		r.Patch(options.BaseURL+"/users/{userId}/firebase-token", wrapper.UpdateFirebaseToken)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/users/{userId}/notifications", wrapper.ToggleNotifications)
 	})
 
 	return r

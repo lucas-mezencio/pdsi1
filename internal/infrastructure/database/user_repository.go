@@ -22,16 +22,14 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 // Save creates or updates a user.
 func (r *UserRepository) Save(ctx context.Context, entity *user.User) error {
 	query := `
-		INSERT INTO users (id, name, email, phone, cpf, firebase_id, firebase_token, notifications_enabled, role, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO users (id, name, email, phone, cpf, firebase_id, role, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		ON CONFLICT (id) DO UPDATE SET
 			name = EXCLUDED.name,
 			email = EXCLUDED.email,
 			phone = EXCLUDED.phone,
 			cpf = EXCLUDED.cpf,
 			firebase_id = EXCLUDED.firebase_id,
-			firebase_token = EXCLUDED.firebase_token,
-			notifications_enabled = EXCLUDED.notifications_enabled,
 			role = EXCLUDED.role,
 			updated_at = EXCLUDED.updated_at
 	`
@@ -45,8 +43,6 @@ func (r *UserRepository) Save(ctx context.Context, entity *user.User) error {
 		entity.Phone,
 		cpf,
 		firebaseID,
-		entity.FirebaseToken,
-		entity.NotificationsEnabled,
 		string(entity.Role),
 		entity.CreatedAt,
 		entity.UpdatedAt,
@@ -57,7 +53,7 @@ func (r *UserRepository) Save(ctx context.Context, entity *user.User) error {
 // FindByID retrieves a user by ID.
 func (r *UserRepository) FindByID(ctx context.Context, id string) (*user.User, error) {
 	query := `
-		SELECT id, name, email, phone, cpf, firebase_id, firebase_token, notifications_enabled, role, created_at, updated_at
+		SELECT id, name, email, phone, cpf, firebase_id, role, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
@@ -72,8 +68,6 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (*user.User, e
 		&entity.Phone,
 		&cpf,
 		&firebaseID,
-		&entity.FirebaseToken,
-		&entity.NotificationsEnabled,
 		&role,
 		&entity.CreatedAt,
 		&entity.UpdatedAt,
@@ -97,7 +91,7 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (*user.User, e
 // FindByEmail retrieves a user by email.
 func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*user.User, error) {
 	query := `
-		SELECT id, name, email, phone, cpf, firebase_id, firebase_token, notifications_enabled, role, created_at, updated_at
+		SELECT id, name, email, phone, cpf, firebase_id, role, created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
@@ -112,8 +106,6 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*user.U
 		&entity.Phone,
 		&cpf,
 		&firebaseID,
-		&entity.FirebaseToken,
-		&entity.NotificationsEnabled,
 		&role,
 		&entity.CreatedAt,
 		&entity.UpdatedAt,
@@ -137,7 +129,7 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*user.U
 // FindByFirebaseID retrieves a user by firebase auth UID.
 func (r *UserRepository) FindByFirebaseID(ctx context.Context, firebaseID string) (*user.User, error) {
 	query := `
-		SELECT id, name, email, phone, cpf, firebase_id, firebase_token, notifications_enabled, role, created_at, updated_at
+		SELECT id, name, email, phone, cpf, firebase_id, role, created_at, updated_at
 		FROM users
 		WHERE firebase_id = $1
 	`
@@ -152,8 +144,6 @@ func (r *UserRepository) FindByFirebaseID(ctx context.Context, firebaseID string
 		&entity.Phone,
 		&cpf,
 		&firebaseIDValue,
-		&entity.FirebaseToken,
-		&entity.NotificationsEnabled,
 		&role,
 		&entity.CreatedAt,
 		&entity.UpdatedAt,
@@ -177,7 +167,7 @@ func (r *UserRepository) FindByFirebaseID(ctx context.Context, firebaseID string
 // FindAll retrieves all users.
 func (r *UserRepository) FindAll(ctx context.Context) ([]*user.User, error) {
 	query := `
-		SELECT id, name, email, phone, cpf, firebase_id, firebase_token, notifications_enabled, role, created_at, updated_at
+		SELECT id, name, email, phone, cpf, firebase_id, role, created_at, updated_at
 		FROM users
 		ORDER BY created_at DESC
 	`
@@ -236,7 +226,7 @@ func (r *UserRepository) Exists(ctx context.Context, id string) (bool, error) {
 // FindCaregivers retrieves all caregivers linked to an elderly user.
 func (r *UserRepository) FindCaregivers(ctx context.Context, elderlyID string) ([]*user.User, error) {
 	query := `
-		SELECT u.id, u.name, u.email, u.phone, u.cpf, u.firebase_id, u.firebase_token, u.notifications_enabled, u.role, u.created_at, u.updated_at
+		SELECT u.id, u.name, u.email, u.phone, u.cpf, u.firebase_id, u.role, u.created_at, u.updated_at
 		FROM users u
 		INNER JOIN user_links ul ON ul.caregiver_id = u.id
 		WHERE ul.elderly_id = $1
@@ -248,7 +238,7 @@ func (r *UserRepository) FindCaregivers(ctx context.Context, elderlyID string) (
 // FindCharges retrieves all elderly users linked to a caregiver.
 func (r *UserRepository) FindCharges(ctx context.Context, caregiverID string) ([]*user.User, error) {
 	query := `
-		SELECT u.id, u.name, u.email, u.phone, u.cpf, u.firebase_id, u.firebase_token, u.notifications_enabled, u.role, u.created_at, u.updated_at
+		SELECT u.id, u.name, u.email, u.phone, u.cpf, u.firebase_id, u.role, u.created_at, u.updated_at
 		FROM users u
 		INNER JOIN user_links ul ON ul.elderly_id = u.id
 		WHERE ul.caregiver_id = $1
@@ -319,8 +309,6 @@ func scanUser(row rowScanner) (*user.User, error) {
 		&entity.Phone,
 		&cpf,
 		&firebaseID,
-		&entity.FirebaseToken,
-		&entity.NotificationsEnabled,
 		&role,
 		&entity.CreatedAt,
 		&entity.UpdatedAt,

@@ -13,8 +13,9 @@ import (
 //
 // Firebase account creation is server-side: the caller supplies a Password,
 // the handler asks AuthenticationProvider to create the Firebase user, then
-// stores the returned UID locally. firebase_id and firebase_token are NOT
-// accepted as input — they are server-internal concerns.
+// stores the returned UID locally. firebase_id is NOT accepted as input —
+// it is server-internal. Push delivery tokens live in user_device_tokens
+// and are managed via the device-token endpoints.
 type CreateUserCommand struct {
 	Name     string
 	Email    string
@@ -31,18 +32,6 @@ type UpdateUserCommand struct {
 	Email string
 	Phone string
 	CPF   string
-}
-
-// UpdateUserFirebaseTokenCommand updates a user's firebase token.
-type UpdateUserFirebaseTokenCommand struct {
-	ID            string
-	FirebaseToken string
-}
-
-// ToggleUserNotificationsCommand enables or disables notifications for a user.
-type ToggleUserNotificationsCommand struct {
-	ID      string
-	Enabled bool
 }
 
 // DeleteUserCommand removes a user.
@@ -65,8 +54,8 @@ func NewUserCommandHandler(repo user.Repository, authProvider AuthenticationProv
 //
 // The flow auto-provisions the corresponding Firebase Auth user via the
 // configured AuthenticationProvider. firebase_id is server-generated from
-// Firebase; firebase_token is empty at creation time (the mobile app refreshes
-// it after first sign-in via UpdateFirebaseToken).
+// Firebase; device push tokens are managed separately via the device-token
+// endpoints (see user_device_tokens table).
 func (h *UserCommandHandler) Create(ctx context.Context, cmd CreateUserCommand) (*user.User, error) {
 	if h.authProvider == nil {
 		return nil, application.ErrAuthNotConfigured
@@ -96,7 +85,6 @@ func (h *UserCommandHandler) Create(ctx context.Context, cmd CreateUserCommand) 
 		email,
 		strings.TrimSpace(cmd.Phone),
 		strings.TrimSpace(cmd.CPF),
-		"", // firebaseToken: not set at creation; mobile updates later
 		role,
 	)
 	if err != nil {
@@ -136,55 +124,6 @@ func (h *UserCommandHandler) Update(ctx context.Context, cmd UpdateUserCommand) 
 			return nil, application.ErrInvalidInput
 		}
 		return nil, err
-	}
-
-	if err := h.repo.Save(ctx, entity); err != nil {
-		return nil, err
-	}
-
-	return entity, nil
-}
-
-// UpdateFirebaseToken updates the firebase token for a user.
-func (h *UserCommandHandler) UpdateFirebaseToken(ctx context.Context, cmd UpdateUserFirebaseTokenCommand) (*user.User, error) {
-	if cmd.ID == "" || cmd.FirebaseToken == "" {
-		return nil, application.ErrInvalidInput
-	}
-
-	entity, err := h.repo.FindByID(ctx, cmd.ID)
-	if err != nil {
-		if errors.Is(err, user.ErrUserNotFound) {
-			return nil, application.ErrUserNotFound
-		}
-		return nil, err
-	}
-
-	entity.UpdateFirebaseToken(cmd.FirebaseToken)
-	if err := h.repo.Save(ctx, entity); err != nil {
-		return nil, err
-	}
-
-	return entity, nil
-}
-
-// ToggleNotifications enables or disables notifications.
-func (h *UserCommandHandler) ToggleNotifications(ctx context.Context, cmd ToggleUserNotificationsCommand) (*user.User, error) {
-	if cmd.ID == "" {
-		return nil, application.ErrInvalidInput
-	}
-
-	entity, err := h.repo.FindByID(ctx, cmd.ID)
-	if err != nil {
-		if errors.Is(err, user.ErrUserNotFound) {
-			return nil, application.ErrUserNotFound
-		}
-		return nil, err
-	}
-
-	if cmd.Enabled {
-		entity.EnableNotifications()
-	} else {
-		entity.DisableNotifications()
 	}
 
 	if err := h.repo.Save(ctx, entity); err != nil {

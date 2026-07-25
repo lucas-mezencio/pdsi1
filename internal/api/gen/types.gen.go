@@ -14,27 +14,6 @@ const (
 	FirebaseJWTScopes firebaseJWTContextKey = "FirebaseJWT.Scopes"
 )
 
-// Defines values for CaregiverInvitationStatus.
-const (
-	CaregiverInvitationStatusACCEPTED CaregiverInvitationStatus = "ACCEPTED"
-	CaregiverInvitationStatusPENDING  CaregiverInvitationStatus = "PENDING"
-	CaregiverInvitationStatusREJECTED CaregiverInvitationStatus = "REJECTED"
-)
-
-// Valid indicates whether the value is a known member of the CaregiverInvitationStatus enum.
-func (e CaregiverInvitationStatus) Valid() bool {
-	switch e {
-	case CaregiverInvitationStatusACCEPTED:
-		return true
-	case CaregiverInvitationStatusPENDING:
-		return true
-	case CaregiverInvitationStatusREJECTED:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for CreateUserRequestRole.
 const (
 	CreateUserRequestRoleCAREGIVER CreateUserRequestRole = "CAREGIVER"
@@ -47,27 +26,6 @@ func (e CreateUserRequestRole) Valid() bool {
 	case CreateUserRequestRoleCAREGIVER:
 		return true
 	case CreateUserRequestRoleELDERLY:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for DoseRecordStatus.
-const (
-	DoseRecordStatusMISSED  DoseRecordStatus = "MISSED"
-	DoseRecordStatusPENDING DoseRecordStatus = "PENDING"
-	DoseRecordStatusTAKEN   DoseRecordStatus = "TAKEN"
-)
-
-// Valid indicates whether the value is a known member of the DoseRecordStatus enum.
-func (e DoseRecordStatus) Valid() bool {
-	switch e {
-	case DoseRecordStatusMISSED:
-		return true
-	case DoseRecordStatusPENDING:
-		return true
-	case DoseRecordStatusTAKEN:
 		return true
 	default:
 		return false
@@ -95,30 +53,19 @@ func (e RegisterRequestRole) Valid() bool {
 // AuthResponse Authentication response returned by `/auth/login` and
 // `/auth/login/doctor`. The `token` is a Firebase ID token (JWT) that
 // must be sent as `Authorization: Bearer <token>` on subsequent
-// authenticated requests. It is **not** the same as the `firebase_token`
-// field on the user — that one is the FCM device token used for push
-// notifications and is unrelated to API authentication.
+// authenticated requests. Push notifications use device tokens managed
+// via the `/users/me/device-tokens` endpoints.
 type AuthResponse struct {
 	// Token Firebase ID token (JWT) to be used as bearer token
 	Token string `json:"token"`
 	User  User   `json:"user"`
 }
 
-// CaregiverInvitation defines model for CaregiverInvitation.
-type CaregiverInvitation struct {
-	CaregiverId *openapi_types.UUID        `json:"caregiver_id,omitempty"`
-	CreatedAt   *time.Time                 `json:"created_at,omitempty"`
-	ElderlyId   *openapi_types.UUID        `json:"elderly_id,omitempty"`
-	Id          *openapi_types.UUID        `json:"id,omitempty"`
-	Status      *CaregiverInvitationStatus `json:"status,omitempty"`
-	Token       *string                    `json:"token,omitempty"`
-	UpdatedAt   *time.Time                 `json:"updated_at,omitempty"`
-}
-
-// CaregiverInvitationStatus defines model for CaregiverInvitation.Status.
-type CaregiverInvitationStatus string
-
-// CreateDoctorRequest defines model for CreateDoctorRequest.
+// CreateDoctorRequest A doctor is a semantic entity that identifies who issued a
+// prescription. Doctors are local-only: this endpoint does NOT
+// create a Firebase Auth account, does NOT require a password,
+// and the resulting Doctor has no firebase_id. Doctors cannot
+// log in to the API.
 type CreateDoctorRequest struct {
 	// Email Doctor's email address
 	Email openapi_types.Email `json:"email"`
@@ -202,24 +149,6 @@ type Doctor struct {
 	// UpdatedAt Last update timestamp
 	UpdatedAt time.Time `json:"updated_at"`
 }
-
-// DoseRecord A single scheduled dose and whether it was taken. Sensitive health
-// data — included in the LGPD data-export.
-type DoseRecord struct {
-	ConfirmedAt    *time.Time          `json:"confirmed_at,omitempty"`
-	CreatedAt      *time.Time          `json:"created_at,omitempty"`
-	Dosage         *string             `json:"dosage,omitempty"`
-	Id             *openapi_types.UUID `json:"id,omitempty"`
-	MedicamentName *string             `json:"medicament_name,omitempty"`
-	PrescriptionId *openapi_types.UUID `json:"prescription_id,omitempty"`
-	ScheduledAt    *time.Time          `json:"scheduled_at,omitempty"`
-	Status         *DoseRecordStatus   `json:"status,omitempty"`
-	UpdatedAt      *time.Time          `json:"updated_at,omitempty"`
-	UserId         *openapi_types.UUID `json:"user_id,omitempty"`
-}
-
-// DoseRecordStatus defines model for DoseRecord.Status.
-type DoseRecordStatus string
 
 // Error defines model for Error.
 type Error struct {
@@ -373,39 +302,11 @@ type User struct {
 	// Name User's full name
 	Name string `json:"name"`
 
-	// NotificationsEnabled Whether notifications are enabled for this user
-	NotificationsEnabled bool `json:"notifications_enabled"`
-
 	// Phone User's phone number
 	Phone string `json:"phone"`
 
 	// UpdatedAt Last update timestamp
 	UpdatedAt time.Time `json:"updated_at"`
-}
-
-// UserDataExport Full LGPD/GDPR right-of-access export for a user. Contains every
-// category of personal data CareConnect holds about the caller,
-// including sensitive health data (prescriptions with their medicaments,
-// and dose records), linked caregivers/charges, and caregiver
-// invitations.
-type UserDataExport struct {
-	// Caregivers Users linked to the caller as caregivers (only populated when
-	// the caller is an elderly user).
-	Caregivers []User `json:"caregivers"`
-
-	// Charges Users the caller is a caregiver for (only populated when the
-	// caller has role=CAREGIVER).
-	Charges []User `json:"charges"`
-
-	// DoseRecords All dose records — sensitive health data.
-	DoseRecords []DoseRecord `json:"dose_records"`
-
-	// Invitations Caregiver invitations where the caller is elderly or caregiver.
-	Invitations []CaregiverInvitation `json:"invitations"`
-
-	// Prescriptions All prescriptions (including inactive) — sensitive health data.
-	Prescriptions []Prescription `json:"prescriptions"`
-	User          User           `json:"user"`
 }
 
 // DoctorId defines model for DoctorId.
@@ -429,9 +330,6 @@ type NotFound = Error
 // ServiceUnavailable defines model for ServiceUnavailable.
 type ServiceUnavailable = Error
 
-// Unauthorized defines model for Unauthorized.
-type Unauthorized = Error
-
 // demoSecretContextKey is the context key for DemoSecret security scheme
 type demoSecretContextKey string
 
@@ -448,20 +346,6 @@ type ListPrescriptionsParams struct {
 
 	// Active Filter by active status
 	Active *bool `form:"active,omitempty" json:"active,omitempty"`
-}
-
-// UpdateFirebaseTokenJSONBody defines parameters for UpdateFirebaseToken.
-type UpdateFirebaseTokenJSONBody struct {
-	// FirebaseToken Firebase Cloud Messaging (FCM) device token used to deliver
-	// push notifications to this user's device. Not to be confused
-	// with the API auth/bearer token returned by `/auth/login`.
-	FirebaseToken string `json:"firebase_token"`
-}
-
-// ToggleNotificationsJSONBody defines parameters for ToggleNotifications.
-type ToggleNotificationsJSONBody struct {
-	// Enabled Whether notifications should be enabled
-	Enabled bool `json:"enabled"`
 }
 
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
@@ -487,9 +371,3 @@ type CreateUserJSONRequestBody = CreateUserRequest
 
 // UpdateUserJSONRequestBody defines body for UpdateUser for application/json ContentType.
 type UpdateUserJSONRequestBody = UpdateUserRequest
-
-// UpdateFirebaseTokenJSONRequestBody defines body for UpdateFirebaseToken for application/json ContentType.
-type UpdateFirebaseTokenJSONRequestBody UpdateFirebaseTokenJSONBody
-
-// ToggleNotificationsJSONRequestBody defines body for ToggleNotifications for application/json ContentType.
-type ToggleNotificationsJSONRequestBody ToggleNotificationsJSONBody

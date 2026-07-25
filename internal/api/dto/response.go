@@ -3,24 +3,23 @@ package dto
 import (
 	"time"
 
+	"github.com.br/lucas-mezencio/pdsi1/internal/domain/devicetoken"
 	"github.com.br/lucas-mezencio/pdsi1/internal/domain/doctor"
 	"github.com.br/lucas-mezencio/pdsi1/internal/domain/user"
 )
 
 // UserResponse is the JSON-safe representation of a user returned by the API.
-// It deliberately omits FirebaseToken, which is server-internal and must never
-// leak through HTTP responses.
+// It deliberately omits any server-internal fields (e.g. push-delivery tokens).
 type UserResponse struct {
-	ID                   string    `json:"id"`
-	Name                 string    `json:"name"`
-	Email                string    `json:"email"`
-	Phone                string    `json:"phone"`
-	CPF                  string    `json:"cpf,omitempty"`
-	FirebaseID           string    `json:"firebase_id,omitempty"`
-	NotificationsEnabled bool      `json:"notifications_enabled"`
-	Role                 user.Role `json:"role"`
-	CreatedAt            time.Time `json:"created_at"`
-	UpdatedAt            time.Time `json:"updated_at"`
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	Email      string    `json:"email"`
+	Phone      string    `json:"phone"`
+	CPF        string    `json:"cpf,omitempty"`
+	FirebaseID string    `json:"firebase_id,omitempty"`
+	Role       user.Role `json:"role"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 // UserResponseFromDomain converts a domain user into the API response shape.
@@ -29,16 +28,15 @@ func UserResponseFromDomain(u *user.User) UserResponse {
 		return UserResponse{}
 	}
 	return UserResponse{
-		ID:                   u.ID,
-		Name:                 u.Name,
-		Email:                u.Email,
-		Phone:                u.Phone,
-		CPF:                  u.CPF,
-		FirebaseID:           u.FirebaseID,
-		NotificationsEnabled: u.NotificationsEnabled,
-		Role:                 u.Role,
-		CreatedAt:            u.CreatedAt,
-		UpdatedAt:            u.UpdatedAt,
+		ID:         u.ID,
+		Name:       u.Name,
+		Email:      u.Email,
+		Phone:      u.Phone,
+		CPF:        u.CPF,
+		FirebaseID: u.FirebaseID,
+		Role:       u.Role,
+		CreatedAt:  u.CreatedAt,
+		UpdatedAt:  u.UpdatedAt,
 	}
 }
 
@@ -93,4 +91,24 @@ func DoctorResponsesFromDomain(doctors []*doctor.Doctor) []DoctorResponse {
 		out = append(out, DoctorResponseFromDomain(d))
 	}
 	return out
+}
+
+type DeviceTokenResponse struct {
+	ID         string     `json:"id"`
+	UserID     string     `json:"user_id"`
+	Enabled    bool       `json:"enabled"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+}
+
+func DeviceTokenResponseFromDomain(t *devicetoken.DeviceToken) DeviceTokenResponse {
+	return DeviceTokenResponse{
+		ID:         t.ID,
+		UserID:     t.UserID,
+		Enabled:    t.Enabled,
+		CreatedAt:  t.CreatedAt,
+		UpdatedAt:  t.UpdatedAt,
+		LastUsedAt: t.LastUsedAt,
+	}
 }

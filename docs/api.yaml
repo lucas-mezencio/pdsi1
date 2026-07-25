@@ -24,6 +24,8 @@ tags:
     description: Prescription management and notification scheduling
   - name: Auth
     description: Authentication operations
+  - name: DeviceTokens
+    description: FCM device-token registration and management (multi-device)
 
 security:
   - FirebaseJWT: []
@@ -64,9 +66,8 @@ paths:
       description: |
         Authenticate a user with email and password. Returns a Firebase ID
         token (JWT) that the client must send as `Authorization: Bearer <token>`
-        on subsequent authenticated requests. This `token` is the API auth/bearer
-        token and is **different** from the user's `firebase_token` field, which
-        is the FCM device token used for push notifications.
+        on subsequent authenticated requests. Push notifications use device
+        tokens managed via the `/users/me/device-tokens` endpoints.
       operationId: login
       security: []
       requestBody:
@@ -224,115 +225,93 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /users/{userId}/firebase-token:
-    patch:
-      tags:
-        - Users
-      summary: Update Firebase token
-      description: Update the user's Firebase token for push notifications
-      operationId: updateFirebaseToken
-      parameters:
-        - $ref: '#/components/parameters/UserId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - firebase_token
-              properties:
-                firebase_token:
-                  type: string
-                  description: |
-                    Firebase Cloud Messaging (FCM) device token used to deliver
-                    push notifications to this user's device. Not to be confused
-                    with the API auth/bearer token returned by `/auth/login`.
-                  example: "fCM_token_abc123xyz"
-      responses:
-        '200':
-          description: Firebase token updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/User'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /users/{userId}/notifications:
+  /users/me/device-tokens:
     post:
       tags:
-        - Users
-      summary: Toggle notifications
-      description: Enable or disable notifications for a user
-      operationId: toggleNotifications
-      parameters:
-        - $ref: '#/components/parameters/UserId'
+        - DeviceTokens
+      summary: Register a device token
+      description: |
+        Register or re-register an FCM device token for the authenticated user.
+        Idempotent for the same (user, token) pair; returns 409 if the token
+        already belongs to a different user.
+      operationId: registerDeviceToken
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - enabled
-              properties:
-                enabled:
-                  type: boolean
-                  description: Whether notifications should be enabled
-                  example: true
+              $ref: '#/components/schemas/RegisterDeviceTokenRequest'
       responses:
-        '200':
-          description: Notification settings updated successfully
+        '201':
+          description: Token registered
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/User'
+                $ref: '#/components/schemas/DeviceToken'
         '400':
           $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  # LGPD data-export endpoint
-  /users/me/data-export:
+        '409':
+          $ref: '#/components/responses/Conflict'
     get:
       tags:
-        - Users
-        - LGPD
-      summary: Export all personal data for the authenticated user (LGPD / GDPR right of access)
-      description: |
-        Returns every category of personal data CareConnect holds about the
-        authenticated caller, including **sensitive health data**
-        (prescriptions with their medicaments, and dose records), plus linked
-        caregivers/charges and caregiver invitations.
-
-        The caller ID is taken from the JWT — users can only ever export
-        their own data. This endpoint serves the Brazilian LGPD (Lei Geral
-        de Proteção de Dados, equivalent to GDPR) right of access.
-
-        This endpoint is currently implemented as an extended route outside
-        the generated OpenAPI server. The spec is provided here for
-        documentation purposes.
-      operationId: lgpdDataExport
+        - DeviceTokens
+      summary: List the caller's device tokens
+      operationId: listDeviceTokens
       responses:
         '200':
-          description: Full data export for the authenticated user
+          description: Device tokens for the authenticated user
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserDataExport'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeviceToken'
+
+  /users/me/device-tokens/{tokenId}:
+    parameters:
+      - name: tokenId
+        in: path
+        required: true
+        schema:
+          type: string
+    delete:
+      tags:
+        - DeviceTokens
+      summary: Delete a device token
+      operationId: deleteDeviceToken
+      responses:
+        '204':
+          description: Deleted
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+    patch:
+      tags:
+        - DeviceTokens
+      summary: Enable or disable a device token
+      operationId: setDeviceTokenEnabled
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetDeviceTokenEnabledRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceToken'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # LGPD data-export endpoint is implemented as an extended route outside
+  # the generated OpenAPI server (see internal/api/router.go). The response
+  # schema (UserDataExport) is still defined below for documentation.
 
   # Doctor endpoints
   /doctors:
@@ -770,10 +749,6 @@ components:
             Brazilian CPF (Cadastro de Pessoa Física), digits-only.
             May be empty if the user was registered without one.
           example: "52998224725"
-        notifications_enabled:
-          type: boolean
-          description: Whether notifications are enabled for this user
-          example: true
         created_at:
           type: string
           format: date-time
@@ -787,7 +762,6 @@ components:
         - name
         - email
         - phone
-        - notifications_enabled
         - created_at
         - updated_at
 
@@ -1171,9 +1145,8 @@ components:
         Authentication response returned by `/auth/login` and
         `/auth/login/doctor`. The `token` is a Firebase ID token (JWT) that
         must be sent as `Authorization: Bearer <token>` on subsequent
-        authenticated requests. It is **not** the same as the `firebase_token`
-        field on the user — that one is the FCM device token used for push
-        notifications and is unrelated to API authentication.
+        authenticated requests. Push notifications use device tokens managed
+        via the `/users/me/device-tokens` endpoints.
       properties:
         token:
           type: string
@@ -1296,6 +1269,42 @@ components:
         - charges
         - invitations
 
+    DeviceToken:
+      type: object
+      required: [id, user_id, enabled, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        last_used_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    RegisterDeviceTokenRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          minLength: 4
+
+    SetDeviceTokenEnabledRequest:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+
   responses:
     BadRequest:
       description: Bad request - invalid input
@@ -1316,6 +1325,26 @@ components:
           example:
             error: "Not found"
             details: "User with ID '123' not found"
+
+    Forbidden:
+      description: Forbidden - the caller is not allowed to access this resource
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "access denied"
+            details: "Token belongs to another user"
+
+    Conflict:
+      description: Resource already exists or belongs to another user
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "conflict"
+            details: "Token is already registered to a different user"
 
     Unauthorized:
       description: |

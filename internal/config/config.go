@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -17,10 +18,13 @@ type Config struct {
 	FirebaseCredentialsFile  string
 	FirebaseCredentialsJSON  string
 	FirebaseWebAPIKey        string
+	FirebaseWebConfig        string
+	FirebaseWebVAPIDKey      string
 	NotificationLookback     time.Duration
 	DemoPrescriptionSecret   string
 	LogFormat                string
 	LogLevel                 string
+	EnableTestPage           bool
 }
 
 const (
@@ -33,9 +37,16 @@ const (
 	defaultLogLevel             = "info"
 )
 
-// Load loads configuration from .env (if present) and environment variables.
-func Load() (*Config, error) {
-	_ = loadDotEnv(".env")
+// Load loads configuration from the given dotenv file (if present) and the
+// process environment. Pass "" to skip dotenv loading. Callers should pass
+// a path relative to the process's CWD.
+//
+// cmd/api passes ".env"; cmd/testnotify passes "cmd/testnotify/.env" so the
+// test binary can use localhost URLs without polluting the API's env file.
+func Load(dotenvPath string) (*Config, error) {
+	if dotenvPath != "" {
+		_ = loadDotEnv(dotenvPath)
+	}
 	return &Config{
 		DatabaseURL:              envString("DATABASE_URL", defaultDSN),
 		HTTPAddr:                 envString("HTTP_ADDR", defaultAddr),
@@ -44,10 +55,13 @@ func Load() (*Config, error) {
 		FirebaseCredentialsFile:  envString("FIREBASE_CREDENTIALS_FILE", ""),
 		FirebaseCredentialsJSON:  envString("FIREBASE_CREDENTIALS_JSON", ""),
 		FirebaseWebAPIKey:        envString("FIREBASE_WEB_API_KEY", ""),
+		FirebaseWebConfig:        envString("FIREBASE_WEB_CONFIG", ""),
+		FirebaseWebVAPIDKey:      envString("FIREBASE_WEB_VAPID_KEY", ""),
 		NotificationLookback:     defaultNotificationLookback,
 		DemoPrescriptionSecret:   envString("DEMO_PRESCRIPTION_SECRET", ""),
 		LogFormat:                envString("LOG_FORMAT", defaultLogFormat),
 		LogLevel:                 envString("LOG_LEVEL", defaultLogLevel),
+		EnableTestPage:           envBool("ENABLE_TEST_PAGE", false),
 	}, nil
 }
 
@@ -57,6 +71,18 @@ func envString(key, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func envBool(key string, fallback bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	b, err := strconv.ParseBool(value)
+	if err != nil {
+		return fallback
+	}
+	return b
 }
 
 func loadDotEnv(path string) error {

@@ -5,11 +5,12 @@ import (
 
 	"firebase.google.com/go/v4/auth"
 	gen "github.com.br/lucas-mezencio/pdsi1/internal/api/gen"
+	"github.com.br/lucas-mezencio/pdsi1/internal/config"
 	"github.com/go-chi/chi/v5"
 )
 
 // NewRouter builds the chi router for the API.
-func NewRouter(server gen.ServerInterface, ext *ExtendedServer, firebaseAuth *auth.Client, demoSecret string) http.Handler {
+func NewRouter(server gen.ServerInterface, ext *ExtendedServer, firebaseAuth *auth.Client, demoSecret string, cfg config.Config) http.Handler {
 	router := chi.NewRouter()
 
 	// Logging middleware: emits one slog entry per request (must run first so
@@ -30,6 +31,11 @@ func NewRouter(server gen.ServerInterface, ext *ExtendedServer, firebaseAuth *au
 
 	// Serve Swagger UI at /api/v1/docs
 	router.Mount("/api/v1/docs", DocsHandler())
+
+	// Minimal FCM service worker for the browser test page. Firebase's
+	// getToken() registers a default SW at /firebase-cloud-messaging-push-scope
+	// whose script must be reachable without auth.
+	router.Get("/firebase-messaging-sw.js", FirebaseMessagingServiceWorker())
 
 	// Register additional routes not covered by the generated spec.
 	router.Route("/api/v1", func(r chi.Router) {
@@ -52,6 +58,27 @@ func NewRouter(server gen.ServerInterface, ext *ExtendedServer, firebaseAuth *au
 
 		// LGPD data-export (Brazilian LGPD / GDPR right of access)
 		r.Get("/users/me/data-export", ext.LGPDDataExport)
+
+		// Device tokens (Firebase Cloud Messaging registration)
+		r.Route("/users/me/device-tokens", func(r chi.Router) {
+			r.Post("/", ext.RegisterDeviceToken)
+			r.Get("/", ext.ListDeviceTokens)
+			r.Route("/{tokenId}", func(r chi.Router) {
+				r.Delete("/", ext.DeleteDeviceToken)
+				r.Patch("/enabled", ext.SetDeviceTokenEnabled)
+			})
+		})
+
+		// Browser test page for device tokens. Only registered when
+		// ENABLE_TEST_PAGE=true so the dev tooling is unreachable in production.
+		if cfg.EnableTestPage {
+			testCfg := TestNotificationsConfig{
+				FirebaseWebConfig:   cfg.FirebaseWebConfig,
+				FirebaseWebVAPIDKey: cfg.FirebaseWebVAPIDKey,
+			}
+			r.Get("/test-notifications", TestNotificationsPage(testCfg))
+			r.Get("/test-notifications/config", TestNotificationsConfigJSON(testCfg))
+		}
 	})
 
 	return router

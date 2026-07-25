@@ -14,6 +14,8 @@ var (
 	ErrAlreadyLinked        = errors.New("users are already linked")
 	ErrWrongRole            = errors.New("user does not have the required role")
 	ErrForbidden            = errors.New("access denied")
+	ErrConflict             = errors.New("conflict")
+	ErrNotFound             = errors.New("not found")
 	ErrAuthenticationFailed = errors.New("invalid email or password")
 	ErrEmailAlreadyInUse    = errors.New("email already in use")
 	ErrLicenseAlreadyInUse  = errors.New("license number already in use")

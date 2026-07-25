@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CareConnect — Test Notifications</title>
+<style>
+  body { font: 14px/1.5 system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+  h1 { font-size: 1.4rem; }
+  pre { background: #f4f4f4; padding: 0.75rem; border-radius: 4px; overflow-x: auto; }
+  button { padding: 0.4rem 0.8rem; margin: 0.2rem 0; cursor: pointer; }
+  .row { display: flex; align-items: center; gap: 0.5rem; border-top: 1px solid #eee; padding: 0.5rem 0; }
+  .row code { flex: 1; }
+  .hidden { display: none; }
+  .err { color: #b00020; }
+  .ok  { color: #0a7a26; }
+</style>
+</head>
+<body>
+<h1>CareConnect — Test Notifications</h1>
+
+<section id="login-section">
+  <h2>1. Login</h2>
+  <input id="email" placeholder="email" autocomplete="username">
+  <input id="password" type="password" placeholder="password" autocomplete="current-password">
+  <button id="login-btn">Login</button>
+  <div id="login-status" class="hidden"></div>
+</section>
+
+<section id="firebase-section" class="hidden">
+  <h2>2. Register this browser</h2>
+  <button id="permission-btn">Enable notifications</button>
+  <div id="permission-status"></div>
+  <button id="register-btn" class="hidden">Register FCM token</button>
+  <pre id="fcm-token" class="hidden"></pre>
+</section>
+
+<section id="tokens-section" class="hidden">
+  <h2>3. Your devices</h2>
+  <button id="refresh-btn">Refresh</button>
+  <div id="tokens"></div>
+</section>
+
+<section id="send-section" class="hidden">
+  <h2>4. Send a test push</h2>
+  <p>Run this in a terminal:</p>
+  <pre id="cli-cmd"></pre>
+  <button id="copy-cmd">Copy</button>
+</section>
+
+<script type="module">
+// Fetched from /api/v1/test-notifications/config on page load.
+let firebaseConfig = null;
+let vapidKey = "";
+fetch("/api/v1/test-notifications/config")
+  .then((r) => {
+    console.log("[test-notifications] config response status:", r.status);
+    if (r.status === 204) return null;
+    if (!r.ok) return null;
+    return r.text().then((t) => t ? JSON.parse(t) : null);
+  })
+  .then((cfg) => {
+    console.log("[test-notifications] parsed config:", cfg);
+    if (cfg) {
+      firebaseConfig = cfg.firebase_config;
+      vapidKey = cfg.vapid_key || "";
+      console.log("[test-notifications] firebaseConfig set:", firebaseConfig);
+      console.log("[test-notifications] vapidKey set:", vapidKey ? "(present)" : "(empty)");
+    }
+  });
+
+const state = { token: null, bearer: null, userId: null };
+
+async function api(method, path, body) {
+  const headers = { "Content-Type": "application/json" };
+  if (state.bearer) headers["Authorization"] = `Bearer ${state.bearer}`;
+  const resp = await fetch(`/api/v1${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const text = await resp.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!resp.ok) throw new Error(data?.error || resp.statusText);
+  return data;
+}
+
+document.getElementById("login-btn").onclick = async () => {
+  const status = document.getElementById("login-status");
+  status.classList.remove("hidden");
+  status.textContent = "Logging in...";
+  try {
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    const out = await api("POST", "/auth/login", { email, password });
+    state.bearer = out.id_token || out.token || out.access_token;
+    state.userId = out.user?.id || out.user_id;
+    status.classList.add("ok");
+    status.textContent = "Logged in.";
+    document.getElementById("firebase-section").classList.remove("hidden");
+  } catch (e) {
+    status.classList.add("err");
+    status.textContent = `Login failed: ${e.message}`;
+    return;
+  }
+
+  if (!firebaseConfig) {
+    document.getElementById("permission-status").textContent =
+      "FIREBASE_WEB_CONFIG is not set on the server; cannot register a token.";
+    return;
+  }
+
+  try {
+    const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+    const { getMessaging, onMessage } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js");
+    window.__fbApp = initializeApp(firebaseConfig);
+    window.__fbMsg = getMessaging();
+    onMessage(window.__fbMsg, (payload) => {
+      console.log("[test-notifications] onMessage:", payload);
+      const n = payload.notification || {};
+      try {
+        new Notification(n.title || 'Medication Reminder', {
+          body: n.body || '',
+          icon: n.icon || '/icon.png',
+          data: payload.data || {},
+        });
+      } catch (e) {
+        console.error("[test-notifications] foreground Notification failed:", e);
+      }
+    });
+  } catch (e) {
+    document.getElementById("permission-status").textContent =
+      `Firebase init failed: ${e.message}`;
+  }
+};
+
+document.getElementById("permission-btn").onclick = async () => {
+  const status = document.getElementById("permission-status");
+  console.log("[test-notifications] permission button clicked");
+
+  const perm = await Notification.requestPermission();
+  console.log("[test-notifications] Notification.permission:", perm);
+  status.textContent = `permission=${perm}`;
+  if (perm !== "granted") return;
+
+  if (!window.__fbMsg) {
+    status.textContent = "Firebase not initialized; cannot get FCM token.";
+    return;
+  }
+
+  console.log("[test-notifications] vapidKey:", vapidKey ? "(present)" : "(empty)");
+
+  // Register our SW explicitly at Firebase's expected scope and wait for
+  // it to become active. Firebase's getToken() calls PushManager.subscribe
+  // synchronously after register, which loses the race against SW
+  // activation. Registering ourselves first lets us wait for activation
+  // before passing the registration to getToken.
+  let registration;
+  try {
+    registration = await navigator.serviceWorker.register(
+      '/firebase-messaging-sw.js',
+      { scope: '/firebase-cloud-messaging-push-scope' }
+    );
+    console.log(
+      "[test-notifications] SW registered:",
+      registration.scope,
+      "state=",
+      registration.active ? registration.active.state : "(no active worker yet)"
+    );
+    if (!registration.active) {
+      await navigator.serviceWorker.ready;
+      console.log("[test-notifications] SW ready (active)");
+    }
+  } catch (e) {
+    console.error("[test-notifications] SW registration failed:", e);
+    status.textContent = `Service worker registration failed: ${e.message}`;
+    return;
+  }
+
+  console.log("[test-notifications] calling getToken with explicit registration");
+  const { getToken } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js");
+  let token;
+  try {
+    token = await getToken(window.__fbMsg, {
+      vapidKey,
+      serviceWorkerRegistration: registration,
+    });
+  } catch (e) {
+    console.error("[test-notifications] getToken failed:", e);
+    status.textContent = `getToken failed: ${e.message}`;
+    return;
+  }
+  console.log("[test-notifications] got token:", token ? token.slice(0, 20) + "..." : "(empty)");
+  state.token = token;
+  document.getElementById("fcm-token").classList.remove("hidden");
+  document.getElementById("fcm-token").textContent = token;
+  document.getElementById("register-btn").classList.remove("hidden");
+};
+
+document.getElementById("register-btn").onclick = async () => {
+  try {
+    await api("POST", "/users/me/device-tokens", { token: state.token });
+    document.getElementById("tokens-section").classList.remove("hidden");
+    document.getElementById("send-section").classList.remove("hidden");
+    document.getElementById("cli-cmd").textContent =
+      `go run ./cmd/testnotify -user-id ${state.userId}`;
+    refresh();
+  } catch (e) {
+    alert("Register failed: " + e.message);
+  }
+};
+
+async function refresh() {
+  const container = document.getElementById("tokens");
+  container.innerHTML = "";
+  const list = await api("GET", "/users/me/device-tokens");
+  for (const t of list) {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML = `
+      <code>${t.id}</code>
+      <span>enabled=${t.enabled}</span>
+      <button data-act="toggle" data-id="${t.id}" data-enabled="${t.enabled}">Toggle</button>
+      <button data-act="delete" data-id="${t.id}">Delete</button>`;
+    container.appendChild(row);
+  }
+  container.onclick = async (ev) => {
+    const btn = ev.target.closest("button");
+    if (!btn) return;
+    const id = btn.dataset.id;
+    if (btn.dataset.act === "delete") {
+      await api("DELETE", `/users/me/device-tokens/${id}`);
+    } else if (btn.dataset.act === "toggle") {
+      const enabled = btn.dataset.enabled !== "true";
+      await api("PATCH", `/users/me/device-tokens/${id}/enabled`, { enabled });
+    }
+    refresh();
+  };
+}
+
+document.getElementById("refresh-btn").onclick = refresh;
+document.getElementById("copy-cmd").onclick = () => {
+  navigator.clipboard.writeText(document.getElementById("cli-cmd").textContent);
+};
+</script>
+</body>
+</html>

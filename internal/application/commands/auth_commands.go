@@ -85,7 +85,6 @@ func (h *AuthCommandHandler) Register(ctx context.Context, cmd RegisterCommand) 
 		email,
 		strings.TrimSpace(cmd.Phone),
 		cpf,
-		"", // firebaseToken: not needed at registration
 		user.Role(cmd.Role),
 	)
 	if err != nil {

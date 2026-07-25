@@ -17,27 +17,21 @@ const (
 
 // User represents an elderly user or caretaker who receives medication notifications
 type User struct {
-	ID                   string    `json:"id"`
-	Name                 string    `json:"name"`
-	Email                string    `json:"email"`
-	Phone                string    `json:"phone"`
-	CPF                  string    `json:"cpf,omitempty"`
-	FirebaseID           string    `json:"firebase_id,omitempty"`
-	// FirebaseToken is the FCM device token used by the scheduler worker
-	// to push medication reminders. It is server-internal and must not
-	// leak through HTTP responses; omitempty keeps it out of the JSON
-	// when it has been deliberately cleared (e.g. by LGPD strip).
-	FirebaseToken        string    `json:"firebase_token,omitempty"`
-	NotificationsEnabled bool      `json:"notifications_enabled"`
-	Role                 Role      `json:"role"`
-	CreatedAt            time.Time `json:"created_at"`
-	UpdatedAt            time.Time `json:"updated_at"`
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	Email      string    `json:"email"`
+	Phone      string    `json:"phone"`
+	CPF        string    `json:"cpf,omitempty"`
+	FirebaseID string    `json:"firebase_id,omitempty"`
+	Role       Role      `json:"role"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 // NewUser creates a new User with generated ID and timestamps.
 // CPF is optional; when non-empty it must be a valid Brazilian CPF (full checksum
 // verification, see ValidateCPF).
-func NewUser(name, email, phone, cpf, firebaseToken string, role Role) (*User, error) {
+func NewUser(name, email, phone, cpf string, role Role) (*User, error) {
 	normalizedCPF := ""
 	if trimmed := trimSpace(cpf); trimmed != "" {
 		validated, err := ValidateCPF(trimmed)
@@ -57,16 +51,14 @@ func NewUser(name, email, phone, cpf, firebaseToken string, role Role) (*User, e
 
 	now := time.Now()
 	return &User{
-		ID:                   uuid.New().String(),
-		Name:                 name,
-		Email:                email,
-		Phone:                phone,
-		CPF:                  normalizedCPF,
-		FirebaseToken:        firebaseToken,
-		NotificationsEnabled: true,
-		Role:                 role,
-		CreatedAt:            now,
-		UpdatedAt:            now,
+		ID:         uuid.New().String(),
+		Name:       name,
+		Email:      email,
+		Phone:      phone,
+		CPF:        normalizedCPF,
+		Role:       role,
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}, nil
 }
 
@@ -93,27 +85,9 @@ func (u *User) Update(name, email, phone, cpf string) error {
 	return nil
 }
 
-// UpdateFirebaseToken updates the user's Firebase token for notifications
-func (u *User) UpdateFirebaseToken(token string) {
-	u.FirebaseToken = token
-	u.UpdatedAt = time.Now()
-}
-
 // LinkFirebaseAccount links the local user to a Firebase Auth UID.
 func (u *User) LinkFirebaseAccount(firebaseID string) {
 	u.FirebaseID = firebaseID
-	u.UpdatedAt = time.Now()
-}
-
-// EnableNotifications enables notifications for the user
-func (u *User) EnableNotifications() {
-	u.NotificationsEnabled = true
-	u.UpdatedAt = time.Now()
-}
-
-// DisableNotifications disables notifications for the user
-func (u *User) DisableNotifications() {
-	u.NotificationsEnabled = false
 	u.UpdatedAt = time.Now()
 }
 

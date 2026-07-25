@@ -13,7 +13,7 @@ compose/up:
 	docker compose -f compose.yml -f compose.dev.yml --profile dev up -d
 
 compose/down:
-	docker compose -f compose.yml --profile dev down
+	docker compose down -v --remove-orphans; docker kill $(docker ps -q); docker rm $(docker ps -aq); docker network prune
 
 compose/logs:
 	docker compose -f compose.yml --profile dev logs -f

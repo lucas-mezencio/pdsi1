@@ -42,15 +42,14 @@ func (stubUserRepoForLogin) FindByFirebaseID(ctx context.Context, firebaseID str
 	created, _ := time.Parse(time.RFC3339Nano, "2026-06-21T21:44:59.383261Z")
 	updated, _ := time.Parse(time.RFC3339Nano, "2026-06-21T21:44:59.383414Z")
 	return &user.User{
-		ID:                   "11111111-1111-4111-8111-111111111111",
-		Name:                 "Joao Doe",
-		Email:                "joao.doe@example.com",
-		Phone:                "+123456320",
-		FirebaseID:           firebaseID,
-		Role:                 user.RoleElderly,
-		CreatedAt:            created,
-		UpdatedAt:            updated,
-		NotificationsEnabled: true,
+		ID:         "11111111-1111-4111-8111-111111111111",
+		Name:       "Joao Doe",
+		Email:      "joao.doe@example.com",
+		Phone:      "+123456320",
+		FirebaseID: firebaseID,
+		Role:       user.RoleElderly,
+		CreatedAt:  created,
+		UpdatedAt:  updated,
 	}, nil
 }
 func (stubUserRepoForLogin) FindAll(ctx context.Context) ([]*user.User, error) { return nil, nil }

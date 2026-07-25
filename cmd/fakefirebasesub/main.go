@@ -40,7 +40,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	appConfig, err := config.Load()
+	appConfig, err := config.Load(".env")
 	if err != nil {
 		log.Printf("config load failed: %v", err)
 		return
@@ -53,10 +53,9 @@ func main() {
 	}
 
 	userPayload := map[string]any{
-		"name":           "Test User",
-		"email":          fmt.Sprintf("user-%s@example.com", uuid.New().String()),
-		"phone":          "+1234567890",
-		"firebase_token": "fake-token",
+		"name":  "Test User",
+		"email": fmt.Sprintf("user-%s@example.com", uuid.New().String()),
+		"phone": "+1234567890",
 	}
 	userBytes, err := doJSON(ctx, http.MethodPost, baseURL+"/users", userPayload)
 	if err != nil {
