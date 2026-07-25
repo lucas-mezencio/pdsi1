@@ -11,24 +11,27 @@ import (
 
 // Config holds application configuration values.
 type Config struct {
-	DatabaseURL             string
-	HTTPAddr                string
-	RedisAddr               string
-	FirebaseCredentialsFile string
-	FirebaseWebAPIKey       string
-	FirebaseWebConfig       string
-	FirebaseWebVAPIDKey     string
-	NotificationLookback    time.Duration
-	DemoPrescriptionSecret  string
-	LogFormat               string
-	LogLevel                string
-	EnableTestPage          bool
+	DatabaseURL              string
+	HTTPAddr                 string
+	RedisAddr                string
+	NotifierMode             string
+	FirebaseCredentialsFile  string
+	FirebaseCredentialsJSON  string
+	FirebaseWebAPIKey        string
+	FirebaseWebConfig        string
+	FirebaseWebVAPIDKey      string
+	NotificationLookback     time.Duration
+	DemoPrescriptionSecret   string
+	LogFormat                string
+	LogLevel                 string
+	EnableTestPage           bool
 }
 
 const (
 	defaultAddr                 = ":8080"
 	defaultDSN                  = "postgres://mednotify:mednotify@localhost:5432/mednotify?sslmode=disable"
 	defaultRedisAddr            = "localhost:6379"
+	defaultNotifierMode         = "dev"
 	defaultNotificationLookback = 2 * time.Hour
 	defaultLogFormat            = "text"
 	defaultLogLevel             = "info"
@@ -45,18 +48,20 @@ func Load(dotenvPath string) (*Config, error) {
 		_ = loadDotEnv(dotenvPath)
 	}
 	return &Config{
-		DatabaseURL:             envString("DATABASE_URL", defaultDSN),
-		HTTPAddr:                envString("HTTP_ADDR", defaultAddr),
-		RedisAddr:               envString("REDIS_ADDR", defaultRedisAddr),
-		FirebaseCredentialsFile: envString("FIREBASE_CREDENTIALS_FILE", ""),
-		FirebaseWebAPIKey:       envString("FIREBASE_WEB_API_KEY", ""),
-		FirebaseWebConfig:       envString("FIREBASE_WEB_CONFIG", ""),
-		FirebaseWebVAPIDKey:     envString("FIREBASE_WEB_VAPID_KEY", ""),
-		NotificationLookback:    defaultNotificationLookback,
-		DemoPrescriptionSecret:  envString("DEMO_PRESCRIPTION_SECRET", ""),
-		LogFormat:               envString("LOG_FORMAT", defaultLogFormat),
-		LogLevel:                envString("LOG_LEVEL", defaultLogLevel),
-		EnableTestPage:          envBool("ENABLE_TEST_PAGE", false),
+		DatabaseURL:              envString("DATABASE_URL", defaultDSN),
+		HTTPAddr:                 envString("HTTP_ADDR", defaultAddr),
+		RedisAddr:                envString("REDIS_ADDR", defaultRedisAddr),
+		NotifierMode:             envString("NOTIFIER_MODE", defaultNotifierMode),
+		FirebaseCredentialsFile:  envString("FIREBASE_CREDENTIALS_FILE", ""),
+		FirebaseCredentialsJSON:  envString("FIREBASE_CREDENTIALS_JSON", ""),
+		FirebaseWebAPIKey:        envString("FIREBASE_WEB_API_KEY", ""),
+		FirebaseWebConfig:        envString("FIREBASE_WEB_CONFIG", ""),
+		FirebaseWebVAPIDKey:      envString("FIREBASE_WEB_VAPID_KEY", ""),
+		NotificationLookback:     defaultNotificationLookback,
+		DemoPrescriptionSecret:   envString("DEMO_PRESCRIPTION_SECRET", ""),
+		LogFormat:                envString("LOG_FORMAT", defaultLogFormat),
+		LogLevel:                 envString("LOG_LEVEL", defaultLogLevel),
+		EnableTestPage:           envBool("ENABLE_TEST_PAGE", false),
 	}, nil
 }
 
@@ -106,6 +111,5 @@ func loadDotEnv(path string) error {
 			_ = os.Setenv(key, value)
 		}
 	}
-
 	return scanner.Err()
 }
