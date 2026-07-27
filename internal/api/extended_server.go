@@ -25,6 +25,7 @@ type ExtendedServer struct {
 	lgpdQueries       *queries.LGPDQueryHandler
 	dtCommands        *commands.DeviceTokenCommandHandler
 	dtQueries         *queries.DeviceTokenQueryHandler
+	invitationBaseURL string
 }
 
 // NewExtendedServer creates an ExtendedServer.
@@ -52,13 +53,34 @@ func NewExtendedServer(
 	}
 }
 
+// WithInvitationBaseURL returns the receiver configured to build invitation
+// accept URLs using baseURL. Pass "" for relative URLs.
+func (s *ExtendedServer) WithInvitationBaseURL(baseURL string) *ExtendedServer {
+	s.invitationBaseURL = baseURL
+	return s
+}
+
 // --- Invitation endpoints ---
 
-// CreateInvitation handles POST /invitations
+// CreateInvitation handles POST /invitations.
+//
+// The simplified request body takes only the caregiver's email:
+//
+//	{ "caregiver_email": "maria@example.com" }
+//
+// The elderly patient is derived from the authenticated caller context
+// (AuthMiddleware). The response includes an `accept_url` the patient can
+// share with the caregiver however they want (WhatsApp, in person, etc.);
+// there is no automated email/SMS/push delivery in this version.
 func (s *ExtendedServer) CreateInvitation(w http.ResponseWriter, r *http.Request) {
+	callerID := callerUserID(r)
+	if callerID == "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "missing authenticated caller")
+		return
+	}
+
 	var body struct {
-		ElderlyID   string `json:"elderly_id"`
-		CaregiverID string `json:"caregiver_id"`
+		CaregiverEmail string `json:"caregiver_email"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request", err.Error())
@@ -66,14 +88,25 @@ func (s *ExtendedServer) CreateInvitation(w http.ResponseWriter, r *http.Request
 	}
 
 	inv, err := s.inviteCommands.Create(r.Context(), commands.CreateInvitationCommand{
-		ElderlyID:   body.ElderlyID,
-		CaregiverID: body.CaregiverID,
+		ElderlyID:      callerID,
+		CaregiverEmail: body.CaregiverEmail,
 	})
 	if err != nil {
 		writeExtendedError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, inv)
+	writeJSON(w, http.StatusCreated, invitationResponse{
+		CaregiverInvitation: inv,
+		AcceptURL:           inv.AcceptURL(s.invitationBaseURL, inv.Token),
+	})
+}
+
+// invitationResponse is the wire format returned by CreateInvitation. It
+// embeds CaregiverInvitation and adds AcceptURL so the patient has a
+// copy-pasteable link to send to the caregiver.
+type invitationResponse struct {
+	*user.CaregiverInvitation
+	AcceptURL string `json:"accept_url"`
 }
 
 // GetInvitationByToken handles GET /invitations/{token}
@@ -415,6 +448,10 @@ func writeExtendedError(w http.ResponseWriter, err error) {
 	}
 	if errors.Is(err, application.ErrAlreadyLinked) {
 		writeError(w, http.StatusConflict, "already linked", err.Error())
+		return
+	}
+	if errors.Is(err, application.ErrWrongRole) {
+		writeError(w, http.StatusBadRequest, "wrong role", err.Error())
 		return
 	}
 	if errors.Is(err, application.ErrInvitationNotPending) {

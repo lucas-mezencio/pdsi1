@@ -3,18 +3,22 @@ package commands
 import (
 	"context"
 	"errors"
+	"net/mail"
 	"strings"
 
 	"github.com.br/lucas-mezencio/pdsi1/internal/application"
 	"github.com.br/lucas-mezencio/pdsi1/internal/domain/user"
 )
 
-// CreateInvitationCommand creates a caregiver invitation.
+// CreateInvitationCommand creates a caregiver invitation by looking up the
+// caregiver via email rather than expecting the caller to know the user's
+// UUID. ElderlyID is the local UUID of the patient inviting the caregiver,
+// derived from the authenticated caller's context at the API layer.
 type CreateInvitationCommand struct {
-	// ElderlyID is the user being cared for.
+	// ElderlyID is the local UUID of the patient doing the inviting.
 	ElderlyID string
-	// CaregiverID is the user who will care.
-	CaregiverID string
+	// CaregiverEmail is the email of the caregiver being invited.
+	CaregiverEmail string
 }
 
 // AcceptInvitationCommand accepts a pending invitation by token.
@@ -44,13 +48,23 @@ func NewInvitationCommandHandler(userRepo user.Repository, inviteRepo user.Invit
 	return &InvitationCommandHandler{userRepo: userRepo, inviteRepo: inviteRepo}
 }
 
-// Create creates a new caregiver invitation.
+// Create creates a new caregiver invitation by looking up the caregiver via
+// email. Returns application errors mapped to HTTP status codes by the API
+// layer:
+//
+//	ErrInvalidInput      → 400 (empty IDs, malformed email)
+//	ErrUserNotFound      → 404 (caregiver email not in DB)
+//	ErrWrongRole         → 400 (caregiver user has the wrong role, or self-invite)
+//	ErrAlreadyLinked     → 409 (caregiver already linked to this elderly user)
 func (h *InvitationCommandHandler) Create(ctx context.Context, cmd CreateInvitationCommand) (*user.CaregiverInvitation, error) {
-	if cmd.ElderlyID == "" || cmd.CaregiverID == "" {
+	cmd.CaregiverEmail = strings.TrimSpace(cmd.CaregiverEmail)
+	if cmd.ElderlyID == "" || cmd.CaregiverEmail == "" {
+		return nil, application.ErrInvalidInput
+	}
+	if _, err := mail.ParseAddress(cmd.CaregiverEmail); err != nil {
 		return nil, application.ErrInvalidInput
 	}
 
-	// Ensure both users exist.
 	elderly, err := h.userRepo.FindByID(ctx, cmd.ElderlyID)
 	if err != nil {
 		if errors.Is(err, user.ErrUserNotFound) {
@@ -58,24 +72,25 @@ func (h *InvitationCommandHandler) Create(ctx context.Context, cmd CreateInvitat
 		}
 		return nil, err
 	}
+	if !elderly.IsElderly() {
+		return nil, application.ErrWrongRole
+	}
 
-	caregiver, err := h.userRepo.FindByID(ctx, cmd.CaregiverID)
+	caregiver, err := h.userRepo.FindByEmail(ctx, cmd.CaregiverEmail)
 	if err != nil {
 		if errors.Is(err, user.ErrUserNotFound) {
 			return nil, application.ErrUserNotFound
 		}
 		return nil, err
 	}
-
-	if !elderly.IsElderly() {
-		return nil, application.ErrWrongRole
-	}
 	if !caregiver.IsCaregiver() {
 		return nil, application.ErrWrongRole
 	}
+	if caregiver.ID == elderly.ID {
+		return nil, application.ErrConflict
+	}
 
-	// Check if already linked.
-	linked, err := h.userRepo.IsLinked(ctx, cmd.CaregiverID, cmd.ElderlyID)
+	linked, err := h.userRepo.IsLinked(ctx, caregiver.ID, cmd.ElderlyID)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +98,7 @@ func (h *InvitationCommandHandler) Create(ctx context.Context, cmd CreateInvitat
 		return nil, application.ErrAlreadyLinked
 	}
 
-	inv, err := user.NewCaregiverInvitation(cmd.CaregiverID, cmd.ElderlyID)
+	inv, err := user.NewCaregiverInvitation(caregiver.ID, cmd.ElderlyID)
 	if err != nil {
 		return nil, err
 	}
