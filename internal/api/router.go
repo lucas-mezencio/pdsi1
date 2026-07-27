@@ -18,8 +18,9 @@ func NewRouter(server gen.ServerInterface, ext *ExtendedServer, firebaseAuth *au
 	router.Use(LoggingMiddleware)
 
 	// Auth middleware: validates Firebase JWT Bearer tokens (or demo secret for POST /prescriptions)
+	// and resolves the Firebase UID to a local user UUID before downstream code runs.
 	if firebaseAuth != nil {
-		router.Use(AuthMiddleware(firebaseAuth, demoSecret))
+		router.Use(AuthMiddleware(firebaseAuth, demoSecret, ext.userRepo))
 	}
 
 	// RBAC middleware: enriches context with caller identity from X-User-ID header.

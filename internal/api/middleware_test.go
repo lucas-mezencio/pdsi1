@@ -61,7 +61,7 @@ func TestAuthMiddleware_FirebaseJWT(t *testing.T) {
 	// Create a mock Firebase auth client that always fails
 	// Real tests would use a proper mock
 	t.Run("missing authorization header", func(t *testing.T) {
-		handler := AuthMiddleware(nil, demoSecret)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := AuthMiddleware(nil, demoSecret, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			t.Error("handler should not be called")
 		}))
 
@@ -75,7 +75,7 @@ func TestAuthMiddleware_FirebaseJWT(t *testing.T) {
 	})
 
 	t.Run("invalid authorization format", func(t *testing.T) {
-		handler := AuthMiddleware(nil, demoSecret)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := AuthMiddleware(nil, demoSecret, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			t.Error("handler should not be called")
 		}))
 
@@ -95,7 +95,7 @@ func TestAuthMiddleware_PostPrescriptions_DemoSecret(t *testing.T) {
 
 	t.Run("POST /prescriptions with valid demo secret", func(t *testing.T) {
 		called := false
-		handler := AuthMiddleware(nil, demoSecret)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := AuthMiddleware(nil, demoSecret, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			called = true
 			w.WriteHeader(http.StatusCreated)
 		}))
@@ -114,7 +114,7 @@ func TestAuthMiddleware_PostPrescriptions_DemoSecret(t *testing.T) {
 	})
 
 	t.Run("POST /prescriptions with invalid demo secret", func(t *testing.T) {
-		handler := AuthMiddleware(nil, demoSecret)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := AuthMiddleware(nil, demoSecret, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			t.Error("handler should not be called")
 		}))
 
@@ -149,7 +149,7 @@ func TestAuthMiddleware_PublicPaths(t *testing.T) {
 	for _, path := range expectedPublicPaths {
 		t.Run("public path "+path, func(t *testing.T) {
 			called := false
-			handler := AuthMiddleware(nil, demoSecret)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := AuthMiddleware(nil, demoSecret, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				called = true
 				w.WriteHeader(http.StatusOK)
 			}))
@@ -168,7 +168,7 @@ func TestAuthMiddleware_PublicPaths(t *testing.T) {
 	}
 
 	t.Run("protected path without auth still rejected", func(t *testing.T) {
-		handler := AuthMiddleware(nil, demoSecret)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := AuthMiddleware(nil, demoSecret, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			t.Error("handler should not be called")
 		}))
 

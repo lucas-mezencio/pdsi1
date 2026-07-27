@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -15,6 +16,13 @@ const (
 	contextKeyUserID   contextKey = "caller_user_id"
 	contextKeyUserRole contextKey = "caller_user_role"
 )
+
+// firebaseTokenVerifier is the subset of *auth.Client that AuthMiddleware
+// depends on. Defining it here lets tests stub verification without a live
+// Firebase project.
+type firebaseTokenVerifier interface {
+	VerifyIDToken(ctx context.Context, token string) (*auth.Token, error)
+}
 
 // RBACMiddleware reads the X-User-ID header and enriches the request context
 // with the caller's ID and role. If the header is absent or the user is not
@@ -53,10 +61,18 @@ func isPublicPath(path string) bool {
 }
 
 // AuthMiddleware validates Firebase JWT Bearer tokens and sets the caller's
-// Firebase UID in the request context. Returns 401 Unauthorized if the token
-// is missing, malformed, or invalid.
+// local user UUID in the request context. Returns 401 Unauthorized if the
+// token is missing, malformed, or invalid, or if the Firebase UID has no
+// matching local user record.
+//
+// IMPORTANT: the value stored under contextKeyUserID is the *local* UUID
+// resolved via userRepo.FindByFirebaseID, not the raw Firebase UID. Every
+// downstream consumer (handlers, queries, commands) treats this value as a
+// local UUID and forwards it to UUID-bound SQL columns; storing the Firebase
+// UID here produces "invalid input syntax for type uuid" errors.
+//
 // For POST /prescriptions, it validates the demo secret instead.
-func AuthMiddleware(firebaseAuth *auth.Client, demoSecret string) func(http.Handler) http.Handler {
+func AuthMiddleware(firebaseAuth firebaseTokenVerifier, demoSecret string, userRepo user.Repository) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Public routes bypass auth
@@ -95,7 +111,17 @@ func AuthMiddleware(firebaseAuth *auth.Client, demoSecret string) func(http.Hand
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), contextKeyUserID, firebaseToken.UID)
+			local, err := userRepo.FindByFirebaseID(r.Context(), firebaseToken.UID)
+			if err != nil {
+				if errors.Is(err, user.ErrUserNotFound) {
+					writeError(w, http.StatusUnauthorized, "user not provisioned", "")
+					return
+				}
+				writeError(w, http.StatusInternalServerError, "failed to resolve caller", err.Error())
+				return
+			}
+
+			ctx := context.WithValue(r.Context(), contextKeyUserID, local.ID)
 			r = r.WithContext(ctx)
 
 			next.ServeHTTP(w, r)
