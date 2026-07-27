@@ -207,7 +207,7 @@ func main() {
 		lgpdQueries,
 		deviceTokenCommands,
 		deviceTokenQueries,
-	)
+	).WithInvitationBaseURL(appConfig.InvitationBaseURL)
 
 	firebaseAuth := firebaseauth.GetAuthClient(firebaseAuthService)
 

@@ -25,6 +25,7 @@ type Config struct {
 	LogFormat                string
 	LogLevel                 string
 	EnableTestPage           bool
+	InvitationBaseURL        string
 }
 
 const (
@@ -62,6 +63,7 @@ func Load(dotenvPath string) (*Config, error) {
 		LogFormat:                envString("LOG_FORMAT", defaultLogFormat),
 		LogLevel:                 envString("LOG_LEVEL", defaultLogLevel),
 		EnableTestPage:           envBool("ENABLE_TEST_PAGE", false),
+		InvitationBaseURL:        envString("INVITATION_BASE_URL", ""),
 	}, nil
 }
 

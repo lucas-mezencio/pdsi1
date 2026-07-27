@@ -3,6 +3,8 @@ package user
 import (
 	"context"
 	"errors"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -67,6 +69,22 @@ func (i *CaregiverInvitation) Reject() error {
 	i.Status = InvitationStatusRejected
 	i.UpdatedAt = time.Now()
 	return nil
+}
+
+// AcceptURL returns the URL the caregiver can visit to accept this invitation.
+// baseURL is the configured invitation base (e.g. "https://app.example.com")
+// and token is the invitation's acceptance token. An empty baseURL produces
+// a relative path so the link is still useful in environments without a
+// configured public URL.
+func (i *CaregiverInvitation) AcceptURL(baseURL, token string) string {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return ""
+	}
+	if baseURL == "" {
+		return "/invitations/" + url.PathEscape(token) + "/accept"
+	}
+	return strings.TrimRight(baseURL, "/") + "/invitations/" + url.PathEscape(token) + "/accept"
 }
 
 // InvitationRepository defines persistence for caregiver invitations.

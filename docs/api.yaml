@@ -26,6 +26,8 @@ tags:
     description: Authentication operations
   - name: DeviceTokens
     description: FCM device-token registration and management (multi-device)
+  - name: Caregivers
+    description: Caregiver invitations and caregiver/elderly linking
 
 security:
   - FirebaseJWT: []
@@ -308,6 +310,230 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  # Caregiver invitation endpoints
+  /invitations:
+    post:
+      tags:
+        - Caregivers
+      summary: Invite a caregiver by email
+      description: |
+        Creates a pending caregiver invitation. The elderly patient (caller)
+        provides only the caregiver's email; the server looks up the caregiver
+        by email and creates the invitation if the caregiver exists, has the
+        `CAREGIVER` role, and is not already linked to the caller.
+
+        There is no automated email/SMS/push delivery. The response includes
+        an `accept_url` the patient can copy and share with the caregiver via
+        any channel (WhatsApp, in person, etc.).
+      operationId: createInvitation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInvitationRequest'
+      responses:
+        '201':
+          description: Invitation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaregiverInvitationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: No user found with the supplied caregiver email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /invitations/{token}:
+    get:
+      tags:
+        - Caregivers
+      summary: Look up an invitation by token
+      description: |
+        Returns the invitation that matches the given token. No
+        authentication is required to look up a pending invitation by token
+        (the token itself is the capability), so anyone with the link can see
+        the invitation details.
+      operationId: getInvitationByToken
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Invitation details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaregiverInvitation'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /invitations/{token}/accept:
+    post:
+      tags:
+        - Caregivers
+      summary: Accept an invitation
+      description: |
+        Accepts a pending invitation and creates the caregiver-elderly link
+        in `user_links`. The caller must be the caregiver named in the
+        invitation; the server checks the JWT context against
+        `invitation.caregiver_id`.
+      operationId: acceptInvitation
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Invitation accepted, link created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaregiverInvitation'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /invitations/{token}/reject:
+    post:
+      tags:
+        - Caregivers
+      summary: Reject an invitation
+      description: |
+        Marks a pending invitation as `REJECTED`. No link is created. The
+        caller must be the caregiver named in the invitation.
+      operationId: rejectInvitation
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Invitation rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaregiverInvitation'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/{userId}/caregivers:
+    get:
+      tags:
+        - Caregivers
+      summary: List caregivers of an elderly user
+      description: |
+        Returns every caregiver linked to the elderly user identified by
+        `userId`. The caller must be the elderly user themselves or a
+        caregiver already linked to them.
+      operationId: listCaregivers
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: List of caregivers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /users/{userId}/caregivers/{caregiverId}:
+    delete:
+      tags:
+        - Caregivers
+      summary: Unlink a caregiver from an elderly user
+      description: |
+        Removes the `user_links` row between the caregiver and the elderly
+        user. Either party (the elderly user or the caregiver) may invoke
+        this endpoint. The invitation row in `caregiver_invitations` is left
+        untouched and remains in `ACCEPTED` state.
+      operationId: unlinkCaregiver
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - name: caregiverId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Link removed
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/{userId}/charges:
+    get:
+      tags:
+        - Caregivers
+      summary: List elderly users (charges) for a caregiver
+      description: |
+        Returns every elderly user linked to the caregiver identified by
+        `userId`. The caller must be that caregiver.
+      operationId: listCharges
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: List of elderly users the caregiver looks after
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /users/{userId}/invitations:
+    get:
+      tags:
+        - Caregivers
+      summary: List caregiver invitations for a caregiver
+      description: |
+        Returns every caregiver invitation addressed to the caregiver
+        identified by `userId`. The caller must be that caregiver.
+      operationId: listCaregiverInvitations
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: List of caregiver invitations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CaregiverInvitation'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # LGPD data-export endpoint is implemented as an extended route outside
   # the generated OpenAPI server (see internal/api/router.go). The response
@@ -1220,6 +1446,62 @@ components:
         updated_at:
           type: string
           format: date-time
+
+    CaregiverInvitationResponse:
+      type: object
+      description: |
+        Response body for `POST /invitations`. Same fields as
+        `CaregiverInvitation` plus `accept_url` — a copy-pasteable link the
+        patient can share with the caregiver. The link is either absolute
+        (when `INVITATION_BASE_URL` is configured on the server) or relative.
+      properties:
+        id:
+          type: string
+          format: uuid
+        caregiver_id:
+          type: string
+          format: uuid
+        elderly_id:
+          type: string
+          format: uuid
+        token:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, ACCEPTED, REJECTED]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        accept_url:
+          type: string
+          description: |
+            URL the caregiver can visit to accept the invitation. Relative
+            when `INVITATION_BASE_URL` is not configured.
+          example: "https://app.example.com/invitations/abc/accept"
+      required:
+        - id
+        - caregiver_id
+        - elderly_id
+        - token
+        - status
+        - accept_url
+
+    CreateInvitationRequest:
+      type: object
+      description: |
+        Request body for `POST /invitations`. The patient (caller) is
+        derived from the JWT context; only the caregiver's email is needed.
+      properties:
+        caregiver_email:
+          type: string
+          format: email
+          description: Email of the caregiver being invited. Must correspond to an existing user with role=CAREGIVER.
+          example: "maria@example.com"
+      required:
+        - caregiver_email
 
     UserDataExport:
       type: object
