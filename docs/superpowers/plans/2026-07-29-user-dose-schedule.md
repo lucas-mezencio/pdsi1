@@ -57,8 +57,6 @@ package prescription
 import (
     "testing"
     "time"
-
-    "github.com.br/lucas-mezencio/pdsi1/internal/domain/user"
 )
 
 func newTestPrescription(createdAt time.Time, meds ...Medicament) *Prescription {
@@ -576,29 +574,19 @@ func TestListScheduleForUser_RejectsEmptyUserID(t *testing.T) {
     }
 }
 
+type restrictiveUserRepo struct{ allowAllUserRepo }
+
+func (restrictiveUserRepo) IsLinked(_ context.Context, _, _ string) (bool, error) {
+    return false, nil
+}
+
 func TestListScheduleForUser_ForbiddenForUnlinkedCaller(t *testing.T) {
-    denyingRepo := struct {
-        allowAllUserRepo
-    }{}
-    // Override IsLinked to return false.
-    denyingRepo.allowAllUserRepo = allowAllUserRepo{}
-
-    type denyUserRepo struct{ allowAllUserRepo }
-    deny := denyUserRepo{allowAllUserRepo{}}
-    deny.allowAllUserRepo = allowAllUserRepo{}
-
-    // Use a dedicated type to override IsLinked.
-    rl := &restrictiveUserRepo{}
-    h := NewDoseRecordQueryHandler(&stubDoseRepo{}, rl, &stubPrescriptionRepo{})
+    h := NewDoseRecordQueryHandler(&stubDoseRepo{}, &restrictiveUserRepo{}, &stubPrescriptionRepo{})
     _, err := h.ListScheduleForUser(context.Background(), ListDoseScheduleQuery{UserID: "user-1", CallerID: "user-2"})
     if !errors.Is(err, application.ErrForbidden) {
         t.Errorf("err = %v, want ErrForbidden", err)
     }
 }
-
-type restrictiveUserRepo struct{ allowAllUserRepo }
-
-func (restrictiveUserRepo) IsLinked(_ context.Context, _, _ string) (bool, error) { return false, nil }
 ```
 
 Note: `user` and `stubUserRepo` types must satisfy `user.Repository`. The codebase's interface lives at `internal/domain/user/repository.go`. If the function set differs, adjust the stubs accordingly — check the interface before running the test. The stubs above are written against the methods used by `DoseRecordQueryHandler` (FindByID, IsLinked, FindCaregivers, FindCharges, plus Save/Delete/Save-related methods used elsewhere). For this test only `IsLinked` matters, so a minimal stub is acceptable; if the interface requires all methods, keep the full stub set.
