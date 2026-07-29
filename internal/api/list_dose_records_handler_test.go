@@ -54,6 +54,35 @@ func (s *recordingUserRepo) IsLinked(_ context.Context, caregiverID, elderlyID s
 	return true, nil
 }
 
+// noopPrescriptionRepo is a minimal stub that satisfies prescription.Repository
+// without doing anything. Used by ListDoseRecords tests that don't exercise
+// prescription queries.
+type noopPrescriptionRepo struct{}
+
+func (noopPrescriptionRepo) Save(_ context.Context, _ *prescription.Prescription) error { return nil }
+func (noopPrescriptionRepo) FindAll(_ context.Context) ([]*prescription.Prescription, error) {
+	return nil, nil
+}
+func (noopPrescriptionRepo) FindByID(_ context.Context, _ string) (*prescription.Prescription, error) {
+	return nil, prescription.ErrPrescriptionNotFound
+}
+func (noopPrescriptionRepo) FindByUserID(_ context.Context, _ string) ([]*prescription.Prescription, error) {
+	return nil, nil
+}
+func (noopPrescriptionRepo) FindByMedicID(_ context.Context, _ string) ([]*prescription.Prescription, error) {
+	return nil, nil
+}
+func (noopPrescriptionRepo) FindActive(_ context.Context) ([]*prescription.Prescription, error) {
+	return nil, nil
+}
+func (noopPrescriptionRepo) FindActiveByUserID(_ context.Context, _ string) ([]*prescription.Prescription, error) {
+	return nil, nil
+}
+func (noopPrescriptionRepo) Delete(_ context.Context, _ string) error { return nil }
+func (noopPrescriptionRepo) Exists(_ context.Context, _ string) (bool, error) {
+	return false, nil
+}
+
 // TestListDoseRecords_DoesNotPassFirebaseUIDToIsLinked is the handler-level
 // smoke test that locks in the fix at the production-500 boundary. After
 // AuthMiddleware resolves the Firebase UID to a local UUID, the dose-record
@@ -71,7 +100,7 @@ func TestListDoseRecords_DoesNotPassFirebaseUIDToIsLinked(t *testing.T) {
 
 	ext := &ExtendedServer{
 		userRepo:    userRepo,
-		doseQueries: queries.NewDoseRecordQueryHandler(doseRepo, userRepo),
+		doseQueries: queries.NewDoseRecordQueryHandler(doseRepo, userRepo, noopPrescriptionRepo{}),
 	}
 
 	// Simulate a request whose caller context already holds the local UUID

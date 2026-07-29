@@ -181,7 +181,7 @@ func main() {
 	prescriptionQueries := queries.NewPrescriptionQueryHandler(prescriptionRepo)
 	inviteCommands := commands.NewInvitationCommandHandler(userRepo, invitationRepo)
 	doseCommands := commands.NewDoseRecordCommandHandler(doseRecordRepo, userRepo)
-	doseQueries := queries.NewDoseRecordQueryHandler(doseRecordRepo, userRepo)
+	doseQueries := queries.NewDoseRecordQueryHandler(doseRecordRepo, userRepo, prescriptionRepo)
 	linkedUserQueries := queries.NewLinkedUserQueryHandler(userRepo, invitationRepo)
 	lgpdQueries := queries.NewLGPDQueryHandler(userRepo, prescriptionRepo, doseRecordRepo, invitationRepo)
 	deviceTokenCommands := commands.NewDeviceTokenCommandHandler(deviceTokenRepo, userRepo)
