@@ -291,6 +291,27 @@ func (s *ExtendedServer) MarkDoseMissed(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, record)
 }
 
+// ListDoseSchedule handles GET /users/{userId}/doses.
+//
+// Returns every dose the user is expected to take across all active
+// prescriptions, overlaid with confirmation history. Reconstruction is
+// performed by the application layer; this handler only wires the URL
+// parameter + caller ID into the query.
+func (s *ExtendedServer) ListDoseSchedule(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "userId")
+	callerID := callerUserID(r)
+
+	items, err := s.doseQueries.ListScheduleForUser(r.Context(), queries.ListDoseScheduleQuery{
+		UserID:   userID,
+		CallerID: callerID,
+	})
+	if err != nil {
+		writeExtendedError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, items)
+}
+
 // --- LGPD data-export endpoint ---
 
 // LGPDDataExport handles GET /users/me/data-export.

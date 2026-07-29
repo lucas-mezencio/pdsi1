@@ -28,6 +28,8 @@ tags:
     description: FCM device-token registration and management (multi-device)
   - name: Caregivers
     description: Caregiver invitations and caregiver/elderly linking
+  - name: DoseSchedule
+    description: User medication schedule — planned doses overlaid with confirmation history.
 
 security:
   - FirebaseJWT: []
@@ -538,6 +540,116 @@ paths:
   # LGPD data-export endpoint is implemented as an extended route outside
   # the generated OpenAPI server (see internal/api/router.go). The response
   # schema (UserDataExport) is still defined below for documentation.
+
+  # Dose schedule endpoints — all implemented as extended routes outside
+  # the generated OpenAPI server (see internal/api/router.go). They are
+  # documented here so Swagger UI / generated clients can discover them.
+  /users/{userId}/doses:
+    get:
+      tags:
+        - DoseSchedule
+      summary: List the user's full medication schedule
+      description: |
+        Returns every dose the user is expected to take across all active
+        prescriptions, overlaid with confirmation history. The schedule
+        is reconstructed from each active prescription's `created_at` +
+        every medicament's `times[]` × `doses`. Existing `dose_records`
+        override the reconstructed PENDING status with their actual
+        status (TAKEN or MISSED).
+
+        Wall-clock times in the `medicament.times[]` strings are
+        interpreted in BRT (UTC-3, no DST) regardless of the server's
+        local timezone.
+      operationId: listUserDoseSchedule
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Full medication schedule sorted by scheduled_at ascending.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ScheduledDose'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/{userId}/dose-records:
+    get:
+      tags:
+        - DoseSchedule
+      summary: List dose records for a user (history only)
+      description: |
+        Returns every persisted dose record for the user, newest first.
+        Only doses whose notification has already fired appear here —
+        for the full planned schedule use `GET /users/{userId}/doses`.
+      operationId: listDoseRecords
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Dose records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DoseRecord'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /dose-records/{doseRecordId}/confirm:
+    post:
+      tags:
+        - DoseSchedule
+      summary: Mark a dose as taken
+      operationId: confirmDose
+      parameters:
+        - name: doseRecordId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Updated dose record
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoseRecord'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /dose-records/{doseRecordId}/miss:
+    post:
+      tags:
+        - DoseSchedule
+      summary: Mark a dose as missed
+      operationId: markDoseMissed
+      parameters:
+        - name: doseRecordId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Updated dose record
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoseRecord'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   # Doctor endpoints
   /doctors:
@@ -1422,6 +1534,46 @@ components:
         updated_at:
           type: string
           format: date-time
+
+    ScheduledDose:
+      type: object
+      description: |
+        A single planned dose in the user's medication schedule. Produced
+        by expanding every active prescription's medicaments; existing
+        dose records (TAKEN / MISSED) take precedence over reconstructed
+        PENDING entries. `dose_record_id` is null until the scheduler
+        materializes the underlying record at notification-fire time.
+      properties:
+        prescription_id:
+          type: string
+          format: uuid
+        medicament_name:
+          type: string
+          example: "AAS"
+        dosage:
+          type: string
+          example: "100mg"
+        scheduled_at:
+          type: string
+          format: date-time
+          description: Planned time in BRT (UTC-3).
+        status:
+          type: string
+          enum: [PENDING, TAKEN, MISSED]
+        dose_record_id:
+          type: string
+          format: uuid
+          nullable: true
+        confirmed_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - prescription_id
+        - medicament_name
+        - dosage
+        - scheduled_at
+        - status
 
     CaregiverInvitation:
       type: object

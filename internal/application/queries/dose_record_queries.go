@@ -3,12 +3,20 @@ package queries
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com.br/lucas-mezencio/pdsi1/internal/application"
 	"github.com.br/lucas-mezencio/pdsi1/internal/domain/prescription"
 	"github.com.br/lucas-mezencio/pdsi1/internal/domain/user"
 )
+
+// ListDoseScheduleQuery retrieves the full planned dose schedule for a user.
+type ListDoseScheduleQuery struct {
+	UserID   string
+	CallerID string
+}
 
 // ListDoseRecordsQuery retrieves dose records for a user.
 type ListDoseRecordsQuery struct {
@@ -43,13 +51,22 @@ type GetInvitationByTokenQuery struct {
 
 // DoseRecordQueryHandler handles dose record read operations.
 type DoseRecordQueryHandler struct {
-	doseRepo prescription.DoseRecordRepository
-	userRepo user.Repository
+	doseRepo         prescription.DoseRecordRepository
+	userRepo         user.Repository
+	prescriptionRepo prescription.Repository
 }
 
 // NewDoseRecordQueryHandler creates a DoseRecordQueryHandler.
-func NewDoseRecordQueryHandler(doseRepo prescription.DoseRecordRepository, userRepo user.Repository) *DoseRecordQueryHandler {
-	return &DoseRecordQueryHandler{doseRepo: doseRepo, userRepo: userRepo}
+func NewDoseRecordQueryHandler(
+	doseRepo prescription.DoseRecordRepository,
+	userRepo user.Repository,
+	prescriptionRepo prescription.Repository,
+) *DoseRecordQueryHandler {
+	return &DoseRecordQueryHandler{
+		doseRepo:         doseRepo,
+		userRepo:         userRepo,
+		prescriptionRepo: prescriptionRepo,
+	}
 }
 
 // ListByUser retrieves dose records for a user (with access control).
@@ -82,6 +99,94 @@ func (h *DoseRecordQueryHandler) checkAccess(ctx context.Context, callerID, owne
 		return application.ErrForbidden
 	}
 	return nil
+}
+
+// ListScheduleForUser returns the user's full medication schedule:
+// every planned dose across active prescriptions, overlaid with existing
+// dose_records (TAKEN / MISSED win). Records with no matching
+// prescription slot are preserved as orphans so callers can still see
+// history that outlived a deactivated prescription.
+func (h *DoseRecordQueryHandler) ListScheduleForUser(ctx context.Context, q ListDoseScheduleQuery) ([]*prescription.ScheduledDose, error) {
+	if q.UserID == "" {
+		return nil, application.ErrInvalidInput
+	}
+	if err := h.checkAccess(ctx, q.CallerID, q.UserID); err != nil {
+		return nil, err
+	}
+
+	prescriptions, err := h.prescriptionRepo.FindActiveByUserID(ctx, q.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	records, err := h.doseRepo.FindByUserID(ctx, q.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	overlay := make(map[string]*prescription.DoseRecord, len(records))
+	for _, r := range records {
+		overlay[overlayKey(r.PrescriptionID, r.ScheduledAt, r.MedicamentName)] = r
+	}
+
+	out := make([]*prescription.ScheduledDose, 0, len(records))
+	seen := make(map[string]struct{}, len(records))
+	for _, p := range prescriptions {
+		for _, slot := range p.ExpandSchedule(prescription.BrazilLocation) {
+			k := overlayKey(slot.PrescriptionID, slot.ScheduledAt, slot.MedicamentName)
+			seen[k] = struct{}{}
+			if rec, ok := overlay[k]; ok {
+				id := rec.ID
+				confirmed := rec.ConfirmedAt
+				out = append(out, &prescription.ScheduledDose{
+					PrescriptionID: rec.PrescriptionID,
+					MedicamentName: rec.MedicamentName,
+					Dosage:         rec.Dosage,
+					ScheduledAt:    rec.ScheduledAt,
+					Status:         rec.Status,
+					DoseRecordID:   &id,
+					ConfirmedAt:    confirmed,
+				})
+				continue
+			}
+			slotCopy := slot
+			out = append(out, &slotCopy)
+		}
+	}
+
+	for _, r := range records {
+		k := overlayKey(r.PrescriptionID, r.ScheduledAt, r.MedicamentName)
+		if _, ok := seen[k]; ok {
+			continue
+		}
+		id := r.ID
+		confirmed := r.ConfirmedAt
+		out = append(out, &prescription.ScheduledDose{
+			PrescriptionID: r.PrescriptionID,
+			MedicamentName: r.MedicamentName,
+			Dosage:         r.Dosage,
+			ScheduledAt:    r.ScheduledAt,
+			Status:         r.Status,
+			DoseRecordID:   &id,
+			ConfirmedAt:    confirmed,
+		})
+	}
+
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].ScheduledAt.Before(out[j].ScheduledAt)
+	})
+
+	return out, nil
+}
+
+// overlayKey builds the canonical key used to match a planned slot to
+// its materialized dose_record. Times are truncated to the minute in
+// UTC so that sub-minute drift between reconstruction (nanos=0) and
+// scheduler-created records (also nanos=0 in production, but tests
+// may use time.Now()-derived values) does not break the match.
+func overlayKey(prescriptionID string, scheduledAt time.Time, medicamentName string) string {
+	truncated := scheduledAt.UTC().Truncate(time.Minute)
+	return prescriptionID + "|" + truncated.Format(time.RFC3339) + "|" + medicamentName
 }
 
 // LinkedUserQueryHandler handles linked-user read operations.

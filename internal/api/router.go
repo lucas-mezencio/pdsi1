@@ -54,6 +54,7 @@ func NewRouter(server gen.ServerInterface, ext *ExtendedServer, firebaseAuth *au
 
 		// Dose records
 		r.Get("/users/{userId}/dose-records", ext.ListDoseRecords)
+		r.Get("/users/{userId}/doses", ext.ListDoseSchedule)
 		r.Post("/dose-records/{doseRecordId}/confirm", ext.ConfirmDose)
 		r.Post("/dose-records/{doseRecordId}/miss", ext.MarkDoseMissed)
 
