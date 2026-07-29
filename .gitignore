@@ -1,6 +1,7 @@
 .env
 coverage.out
 .agents/memory
+.superpowers/
 bin/
 /api
 /*.exe

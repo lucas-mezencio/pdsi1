@@ -39,16 +39,16 @@ func TestPrescription_ExpandSchedule_EmptyMedicaments(t *testing.T) {
 }
 
 func TestPrescription_ExpandSchedule_OnceDailyThreeDoses(t *testing.T) {
-    // Anchor at start of tomorrow so all 3 slots are guaranteed future.
-    tomorrow := time.Now().In(BrazilLocation).AddDate(0, 0, 1)
-    createdAt := time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 0, 0, 0, 0, BrazilLocation)
-    p := newTestPrescription(createdAt, Medicament{
-        Name:      "AAS",
-        Dosage:    "100mg",
-        Frequency: "24:00",
-        Times:     []string{"08:00"},
-        Doses:     3,
-    })
+	// Anchor at start of tomorrow so all 3 slots are guaranteed future.
+	tomorrow := time.Now().In(BrazilLocation).AddDate(0, 0, 1)
+	createdAt := time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 0, 0, 0, 0, BrazilLocation)
+	p := newTestPrescription(createdAt, Medicament{
+		Name:      "AAS",
+		Dosage:    "100mg",
+		Frequency: "24:00",
+		Times:     []string{"08:00"},
+		Doses:     3,
+	})
 
 	got := p.ExpandSchedule(BrazilLocation)
 	if len(got) != 3 {
@@ -71,7 +71,7 @@ func TestPrescription_ExpandSchedule_OnceDailyThreeDoses(t *testing.T) {
 		if off != -3*60*60 {
 			t.Errorf("slot %d offset = %d, want -10800", i, off)
 		}
-if slot.ScheduledAt.Hour() != 8 || slot.ScheduledAt.Minute() != 0 {
+		if slot.ScheduledAt.Hour() != 8 || slot.ScheduledAt.Minute() != 0 {
 			t.Errorf("slot %d wall clock = %02d:%02d, want 08:00", i, slot.ScheduledAt.Hour(), slot.ScheduledAt.Minute())
 		}
 	}
@@ -85,15 +85,15 @@ if slot.ScheduledAt.Hour() != 8 || slot.ScheduledAt.Minute() != 0 {
 }
 
 func TestPrescription_ExpandSchedule_TwiceDailyFourDoses(t *testing.T) {
-    tomorrow := time.Now().In(BrazilLocation).AddDate(0, 0, 1)
-    createdAt := time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 0, 0, 0, 0, BrazilLocation)
-    p := newTestPrescription(createdAt, Medicament{
-        Name:      "Lisinopril",
-        Dosage:    "10mg",
-        Frequency: "12:00",
-        Times:     []string{"08:00", "20:00"},
-        Doses:     4,
-    })
+	tomorrow := time.Now().In(BrazilLocation).AddDate(0, 0, 1)
+	createdAt := time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 0, 0, 0, 0, BrazilLocation)
+	p := newTestPrescription(createdAt, Medicament{
+		Name:      "Lisinopril",
+		Dosage:    "10mg",
+		Frequency: "12:00",
+		Times:     []string{"08:00", "20:00"},
+		Doses:     4,
+	})
 
 	got := p.ExpandSchedule(BrazilLocation)
 	if len(got) != 4 {

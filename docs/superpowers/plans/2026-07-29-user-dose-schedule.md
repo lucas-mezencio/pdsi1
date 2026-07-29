@@ -1203,3 +1203,44 @@ If nothing changed, no commit is needed — skip this step.
 - `ExtendedServer.ListDoseSchedule` signature matches the test's expectation (`rr := httptest.NewRecorder(); ext.ListDoseSchedule(rr, req)`). ✓
 
 All consistent.
+---
+
+## Deviations recorded during implementation
+
+The following two deviations from the plan above were applied during the
+2026-07-29 implementation. Both were plan defects, not implementation
+defects; the implementation choices are correct.
+
+1. **Task 1, Step 1 — hardcoded dates replaced with relative ones.**
+   The plan's tests used `time.Date(2026, 7, 29, ...)` for `createdAt`.
+   Since the plan was written on 2026-07-29, those slots were all in the
+   past the moment the tests ran later that day, and `ExpandSchedule`'s
+   past-slot filter dropped them, causing the tests to fail (got 2
+   slots instead of 3, etc.). The implementer replaced the hardcoded
+   dates with `time.Now().In(BrazilLocation).AddDate(0, 0, 1)` (start
+   of tomorrow). This is what `scheduled_dose_test.go` now contains.
+
+2. **Task 2, Step 3 — `overlayKey` truncates to the minute, not
+   `RFC3339Nano`.** The plan defined `overlayKey` with
+   `scheduledAt.UTC().Format(time.RFC3339Nano)`. In production this is
+   fine because both reconstructed slots and scheduler-created records
+   use `time.Date(..., 0)` (nanos=0). In tests, however, the
+   `DoseRecord.ScheduledAt` was sourced from `time.Now().Add(2 * time.Hour)`
+   which carries sub-second nanos; the reconstructed slot had nanos=0,
+   so the overlay missed and the orphan pass appended the record
+   again. The implementer changed `overlayKey` to
+   `Truncate(time.Minute).Format(time.RFC3339)` and updated the
+   docstring. This is what `dose_record_queries.go` now contains.
+
+3. **Task 5 — codegen regen skipped.** `go generate ./internal/api/gen/...`
+   fails to compile the result against the pinned
+   `github.com/oapi-codegen/runtime v1.4.0`. This is a pre-existing
+   toolchain skew (codegen v2.8.0 vs runtime v1.4.0) that surfaces the
+   fact that the spec gained paths (`/invitations/*`) in commit
+   `e523167` without a corresponding regen — the existing
+   `*httpapi.Server` doesn't implement those paths because they are
+   wired manually as extended routes. The new endpoint
+   `/users/{userId}/doses` is itself an extended route, so the regen
+   would not have produced a useful diff even if it had built. The
+   pre-existing skew is left for a separate PR that bumps the runtime
+   or pins codegen to v2.7.0.

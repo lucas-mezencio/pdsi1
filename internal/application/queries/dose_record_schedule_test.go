@@ -76,11 +76,11 @@ func (allowAllUserRepo) FindByEmail(_ context.Context, _ string) (*user.User, er
 	return nil, user.ErrUserNotFound
 }
 func (allowAllUserRepo) Save(_ context.Context, _ *user.User) error { return nil }
-func (allowAllUserRepo) Delete(_ context.Context, _ string) error  { return nil }
+func (allowAllUserRepo) Delete(_ context.Context, _ string) error   { return nil }
 func (allowAllUserRepo) FindByFirebaseID(_ context.Context, _ string) (*user.User, error) {
 	return nil, user.ErrUserNotFound
 }
-func (allowAllUserRepo) FindAll(_ context.Context) ([]*user.User, error) { return nil, nil }
+func (allowAllUserRepo) FindAll(_ context.Context) ([]*user.User, error)  { return nil, nil }
 func (allowAllUserRepo) Exists(_ context.Context, _ string) (bool, error) { return false, nil }
 func (allowAllUserRepo) IsLinked(_ context.Context, _, _ string) (bool, error) {
 	return true, nil
@@ -91,8 +91,8 @@ func (allowAllUserRepo) FindCaregivers(_ context.Context, _ string) ([]*user.Use
 func (allowAllUserRepo) FindCharges(_ context.Context, _ string) ([]*user.User, error) {
 	return nil, nil
 }
-func (allowAllUserRepo) LinkUsers(_ context.Context, _, _ string) error    { return nil }
-func (allowAllUserRepo) UnlinkUsers(_ context.Context, _, _ string) error  { return nil }
+func (allowAllUserRepo) LinkUsers(_ context.Context, _, _ string) error   { return nil }
+func (allowAllUserRepo) UnlinkUsers(_ context.Context, _, _ string) error { return nil }
 
 func TestListScheduleForUser_ReconstructsPendingSlots(t *testing.T) {
 	futureTime := time.Now().In(prescription.BrazilLocation).Add(2 * time.Hour)
