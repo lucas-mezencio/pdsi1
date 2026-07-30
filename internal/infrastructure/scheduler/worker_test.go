@@ -514,22 +514,41 @@ func TestStartNotificationConsumer_SendError_BoundedRetryThenAck(t *testing.T) {
 
 // captureLogs swaps slog.Default() for a buffer-backed JSON handler at
 // LevelDebug for the duration of the test, restoring the original logger
-// afterwards. Returns the buffer so the test can assert on what was
-// written.
-func captureLogs(t *testing.T) *bytes.Buffer {
+// afterwards. Returns a *safeBuffer so the consumer goroutine's writes
+// can race with the test goroutine's reads without tripping -race.
+func captureLogs(t *testing.T) *safeBuffer {
 	t.Helper()
 	original := slog.Default()
 	t.Cleanup(func() { slog.SetDefault(original) })
 
-	buf := &bytes.Buffer{}
+	buf := &safeBuffer{}
 	handler := slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug})
 	slog.SetDefault(slog.New(handler))
 	return buf
 }
 
+// safeBuffer wraps bytes.Buffer with a mutex so concurrent slog writes
+// and test-thread reads don't trip -race.
+type safeBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *safeBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *safeBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
 // findLogEntry decodes the JSON-lines log buffer and returns the first
 // entry whose msg field matches. Returns nil if not found.
-func findLogEntry(t *testing.T, buf *bytes.Buffer, msg string) map[string]any {
+func findLogEntry(t *testing.T, buf *safeBuffer, msg string) map[string]any {
 	t.Helper()
 	for _, line := range strings.Split(buf.String(), "\n") {
 		if line == "" {
