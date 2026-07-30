@@ -27,7 +27,7 @@ func stubExtendedServer(
 ) *ExtendedServer {
 	t.Helper()
 	dtCmd := commands.NewDeviceTokenCommandHandler(dtRepo, uRepo)
-	dtQuery := queries.NewDeviceTokenQueryHandler(dtRepo, uRepo)
+	dtQuery := queries.NewDeviceTokenQueryHandler(dtRepo)
 	return NewExtendedServer(
 		uRepo,
 		nil, nil, nil, nil, nil, nil, // existing handlers unused here
@@ -90,10 +90,12 @@ func TestRegisterDeviceToken_AuthMiddlewareEndToEnd(t *testing.T) {
 	}
 }
 
-// withCallerID injects a Firebase UID into the request context the way the
-// auth middleware would.
-func withCallerID(req *http.Request, uid string) *http.Request {
-	ctx := context.WithValue(req.Context(), contextKeyUserID, uid)
+// withCallerID injects the LOCAL user UUID into the request context the way
+// AuthMiddleware does after resolving a Firebase UID. (Historically this
+// helper was misnamed because the device-token handler stuffed the value
+// into a field called CallerFirebaseID; the value was always the local UUID.)
+func withCallerID(req *http.Request, localID string) *http.Request {
+	ctx := context.WithValue(req.Context(), contextKeyUserID, localID)
 	return req.WithContext(ctx)
 }
 
@@ -111,7 +113,7 @@ func TestPostDeviceToken_Success(t *testing.T) {
 	body := strings.NewReader(`{"token":"fcm-abc-12345"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/users/me/device-tokens", body)
 	req.Header.Set("Content-Type", "application/json")
-	req = withCallerID(req, "fb-uid")
+	req = withCallerID(req, localID)
 	rr := httptest.NewRecorder()
 
 	s.RegisterDeviceToken(rr, req)
@@ -137,7 +139,7 @@ func TestPostDeviceToken_InvalidBody(t *testing.T) {
 	body := strings.NewReader(`{"token":"ab"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/users/me/device-tokens", body)
 	req.Header.Set("Content-Type", "application/json")
-	req = withCallerID(req, "fb-uid")
+	req = withCallerID(req, "11111111-1111-1111-1111-111111111111")
 	rr := httptest.NewRecorder()
 
 	s.RegisterDeviceToken(rr, req)
@@ -160,7 +162,7 @@ func TestListDeviceTokens(t *testing.T) {
 	s := stubExtendedServer(t, dtRepo, uRepo)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/me/device-tokens", nil)
-	req = withCallerID(req, "fb-uid")
+	req = withCallerID(req, localID)
 	rr := httptest.NewRecorder()
 
 	s.ListDeviceTokens(rr, req)
@@ -194,7 +196,7 @@ func TestDeleteDeviceToken_NotOwner(t *testing.T) {
 	s := stubExtendedServer(t, dtRepo, uRepo)
 
 	req := deleteRequest("/api/v1/users/me/device-tokens/dt-1")
-	req = withCallerID(req, "fb-uid")
+	req = withCallerID(req, "self")
 	rr := httptest.NewRecorder()
 
 	s.DeleteDeviceToken(rr, req)
@@ -219,7 +221,7 @@ func TestSetDeviceTokenEnabled(t *testing.T) {
 
 	body := bytes.NewReader([]byte(`{"enabled":false}`))
 	req := patchRequest("/api/v1/users/me/device-tokens/dt-1/enabled", body)
-	req = withCallerID(req, "fb-uid")
+	req = withCallerID(req, localID)
 	rr := httptest.NewRecorder()
 
 	s.SetDeviceTokenEnabled(rr, req)

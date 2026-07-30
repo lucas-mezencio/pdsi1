@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com.br/lucas-mezencio/pdsi1/internal/domain/devicetoken"
-	"github.com.br/lucas-mezencio/pdsi1/internal/domain/user"
 )
 
 type mockDeviceTokenRepo struct {
@@ -42,11 +41,10 @@ func TestListDeviceTokens(t *testing.T) {
 			}, nil
 		},
 	}
-	uRepo := minimalUserRepo(userID)
 
-	h := NewDeviceTokenQueryHandler(dtRepo, uRepo)
+	h := NewDeviceTokenQueryHandler(dtRepo)
 	out, err := h.ListDeviceTokens(context.Background(),
-		ListDeviceTokensQuery{CallerFirebaseID: "fb-uid"})
+		ListDeviceTokensQuery{CallerID: userID})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -54,27 +52,3 @@ func TestListDeviceTokens(t *testing.T) {
 		t.Fatalf("expected 2 tokens, got %d", len(out))
 	}
 }
-
-// minimalUserRepo returns a user.Repository stub that resolves a single uid.
-func minimalUserRepo(localID string) user.Repository {
-	return &minimalUserRepoImpl{localID: localID}
-}
-
-type minimalUserRepoImpl struct{ localID string }
-
-func (m *minimalUserRepoImpl) FindByFirebaseID(ctx context.Context, fid string) (*user.User, error) {
-	return &user.User{ID: m.localID}, nil
-}
-
-// Other methods panic — they must not be called.
-func (m *minimalUserRepoImpl) Save(context.Context, *user.User) error { panic("not used") }
-func (m *minimalUserRepoImpl) FindByID(context.Context, string) (*user.User, error) { panic("not used") }
-func (m *minimalUserRepoImpl) FindByEmail(context.Context, string) (*user.User, error) { panic("not used") }
-func (m *minimalUserRepoImpl) FindAll(context.Context) ([]*user.User, error) { panic("not used") }
-func (m *minimalUserRepoImpl) Delete(context.Context, string) error { panic("not used") }
-func (m *minimalUserRepoImpl) Exists(context.Context, string) (bool, error) { panic("not used") }
-func (m *minimalUserRepoImpl) FindCaregivers(context.Context, string) ([]*user.User, error) { panic("not used") }
-func (m *minimalUserRepoImpl) FindCharges(context.Context, string) ([]*user.User, error) { panic("not used") }
-func (m *minimalUserRepoImpl) IsLinked(context.Context, string, string) (bool, error) { panic("not used") }
-func (m *minimalUserRepoImpl) LinkUsers(context.Context, string, string) error { panic("not used") }
-func (m *minimalUserRepoImpl) UnlinkUsers(context.Context, string, string) error { panic("not used") }

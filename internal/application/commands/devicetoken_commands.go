@@ -2,7 +2,6 @@ package commands
 
 import (
     "context"
-    "errors"
     "fmt"
 
     "github.com.br/lucas-mezencio/pdsi1/internal/application"
@@ -11,22 +10,24 @@ import (
 )
 
 // RegisterDeviceTokenCommand registers a new device token for the caller.
+// CallerID is the LOCAL user UUID resolved by AuthMiddleware (NOT the
+// Firebase UID). Pass it to FK-bound columns like user_device_tokens.user_id.
 type RegisterDeviceTokenCommand struct {
-    CallerFirebaseID string
-    Token            string
+    CallerID string
+    Token    string
 }
 
 // DeleteDeviceTokenCommand removes a device token owned by the caller.
 type DeleteDeviceTokenCommand struct {
-    CallerFirebaseID string
-    TokenID          string
+    CallerID string
+    TokenID  string
 }
 
 // SetDeviceTokenEnabledCommand toggles the enabled flag of a token.
 type SetDeviceTokenEnabledCommand struct {
-    CallerFirebaseID string
-    TokenID          string
-    Enabled          bool
+    CallerID string
+    TokenID  string
+    Enabled  bool
 }
 
 // DeviceTokenCommandHandler routes write operations on device tokens.
@@ -43,38 +44,23 @@ func NewDeviceTokenCommandHandler(
     return &DeviceTokenCommandHandler{dtRepo: dtRepo, uRepo: uRepo}
 }
 
-func (h *DeviceTokenCommandHandler) resolveCaller(ctx context.Context, fid string) (string, error) {
-    if fid == "" {
-        return "", application.ErrInvalidInput
-    }
-    u, err := h.uRepo.FindByFirebaseID(ctx, fid)
-    if err != nil {
-        if errors.Is(err, user.ErrUserNotFound) {
-            return "", application.ErrUserNotFound
-        }
-        return "", err
-    }
-    return u.ID, nil
-}
-
 // RegisterDeviceToken upserts (or conflicts) a token for the caller.
 func (h *DeviceTokenCommandHandler) RegisterDeviceToken(
     ctx context.Context,
     cmd RegisterDeviceTokenCommand,
 ) (*devicetoken.DeviceToken, error) {
-    localID, err := h.resolveCaller(ctx, cmd.CallerFirebaseID)
-    if err != nil {
-        return nil, err
+    if cmd.CallerID == "" {
+        return nil, application.ErrInvalidInput
     }
 
-    dt, err := devicetoken.New(localID, cmd.Token)
+    dt, err := devicetoken.New(cmd.CallerID, cmd.Token)
     if err != nil {
         return nil, application.ErrInvalidInput
     }
 
     saved, err := h.dtRepo.Save(ctx, dt)
     if err != nil {
-        if errors.Is(err, devicetoken.ErrConflict) {
+        if err == devicetoken.ErrConflict {
             return nil, application.ErrConflict
         }
         return nil, fmt.Errorf("save device token: %w", err)
@@ -87,19 +73,18 @@ func (h *DeviceTokenCommandHandler) DeleteDeviceToken(
     ctx context.Context,
     cmd DeleteDeviceTokenCommand,
 ) error {
-    localID, err := h.resolveCaller(ctx, cmd.CallerFirebaseID)
-    if err != nil {
-        return err
+    if cmd.CallerID == "" {
+        return application.ErrInvalidInput
     }
 
     existing, err := h.dtRepo.FindByID(ctx, cmd.TokenID)
     if err != nil {
-        if errors.Is(err, devicetoken.ErrNotFound) {
+        if err == devicetoken.ErrNotFound {
             return application.ErrNotFound
         }
         return fmt.Errorf("find device token: %w", err)
     }
-    if existing.UserID != localID {
+    if existing.UserID != cmd.CallerID {
         return application.ErrForbidden
     }
 
@@ -114,25 +99,24 @@ func (h *DeviceTokenCommandHandler) SetDeviceTokenEnabled(
     ctx context.Context,
     cmd SetDeviceTokenEnabledCommand,
 ) (*devicetoken.DeviceToken, error) {
-    localID, err := h.resolveCaller(ctx, cmd.CallerFirebaseID)
-    if err != nil {
-        return nil, err
+    if cmd.CallerID == "" {
+        return nil, application.ErrInvalidInput
     }
 
     existing, err := h.dtRepo.FindByID(ctx, cmd.TokenID)
     if err != nil {
-        if errors.Is(err, devicetoken.ErrNotFound) {
+        if err == devicetoken.ErrNotFound {
             return nil, application.ErrNotFound
         }
         return nil, fmt.Errorf("find device token: %w", err)
     }
-    if existing.UserID != localID {
+    if existing.UserID != cmd.CallerID {
         return nil, application.ErrForbidden
     }
 
     updated, err := h.dtRepo.SetEnabled(ctx, cmd.TokenID, cmd.Enabled)
     if err != nil {
-        if errors.Is(err, devicetoken.ErrNotFound) {
+        if err == devicetoken.ErrNotFound {
             return nil, application.ErrNotFound
         }
         return nil, fmt.Errorf("set device token enabled: %w", err)

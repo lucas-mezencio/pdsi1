@@ -185,7 +185,7 @@ func main() {
 	linkedUserQueries := queries.NewLinkedUserQueryHandler(userRepo, invitationRepo)
 	lgpdQueries := queries.NewLGPDQueryHandler(userRepo, prescriptionRepo, doseRecordRepo, invitationRepo)
 	deviceTokenCommands := commands.NewDeviceTokenCommandHandler(deviceTokenRepo, userRepo)
-	deviceTokenQueries := queries.NewDeviceTokenQueryHandler(deviceTokenRepo, userRepo)
+	deviceTokenQueries := queries.NewDeviceTokenQueryHandler(deviceTokenRepo)
 
 	apiServer := httpapi.NewServer(
 		userCommands,

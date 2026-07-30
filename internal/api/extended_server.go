@@ -361,8 +361,8 @@ func (s *ExtendedServer) RegisterDeviceToken(w http.ResponseWriter, r *http.Requ
 
 	saved, err := s.dtCommands.RegisterDeviceToken(r.Context(),
 		commands.RegisterDeviceTokenCommand{
-			CallerFirebaseID: caller,
-			Token:            body.Token,
+			CallerID: caller,
+			Token:    body.Token,
 		})
 	if err != nil {
 		log.Printf("device-token POST failed: caller=%q err=%v", caller, err)
@@ -378,7 +378,7 @@ func (s *ExtendedServer) ListDeviceTokens(w http.ResponseWriter, r *http.Request
 	caller := callerUserID(r)
 	log.Printf("device-token GET: caller=%q", caller)
 	out, err := s.dtQueries.ListDeviceTokens(r.Context(),
-		queries.ListDeviceTokensQuery{CallerFirebaseID: caller})
+		queries.ListDeviceTokensQuery{CallerID: caller})
 	if err != nil {
 		log.Printf("device-token GET failed: caller=%q err=%v", caller, err)
 		writeExtendedError(w, err)
@@ -403,8 +403,8 @@ func (s *ExtendedServer) DeleteDeviceToken(w http.ResponseWriter, r *http.Reques
 	}
 	if err := s.dtCommands.DeleteDeviceToken(r.Context(),
 		commands.DeleteDeviceTokenCommand{
-			CallerFirebaseID: caller,
-			TokenID:          tokenID,
+			CallerID: caller,
+			TokenID:  tokenID,
 		}); err != nil {
 		log.Printf("device-token DELETE failed: caller=%q tokenID=%q err=%v", caller, tokenID, err)
 		writeExtendedError(w, err)
@@ -429,9 +429,9 @@ func (s *ExtendedServer) SetDeviceTokenEnabled(w http.ResponseWriter, r *http.Re
 	log.Printf("device-token PATCH: caller=%q tokenID=%q enabled=%v", caller, tokenID, body.Enabled)
 	updated, err := s.dtCommands.SetDeviceTokenEnabled(r.Context(),
 		commands.SetDeviceTokenEnabledCommand{
-			CallerFirebaseID: caller,
-			TokenID:          tokenID,
-			Enabled:          body.Enabled,
+			CallerID: caller,
+			TokenID:  tokenID,
+			Enabled:  body.Enabled,
 		})
 	if err != nil {
 		log.Printf("device-token PATCH failed: caller=%q tokenID=%q err=%v", caller, tokenID, err)
