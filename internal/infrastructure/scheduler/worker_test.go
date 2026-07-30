@@ -295,3 +295,104 @@ func TestStartNotificationConsumer_NoTokens_AcksAndSkips(t *testing.T) {
 		t.Fatalf("sender.Send called %d times after no-tokens skip", len(calls))
 	}
 }
+
+// TestStartNotificationConsumer_NoTokens_StillFansOutToCaregivers verifies
+// that when the elderly user has zero active device tokens, the caregiver
+// fan-out still runs. Caregivers are the safety net when the elderly person
+// has not installed the mobile app, so skipping them because the elderly
+// user has no tokens defeats the purpose of the caregiver relationship.
+func TestStartNotificationConsumer_NoTokens_StillFansOutToCaregivers(t *testing.T) {
+	pubSub := gochannel.NewGoChannel(gochannel.Config{Persistent: true}, watermill.NopLogger{})
+
+	sender := &stubSender{}
+	lookup := &stubLookup{
+		tokensByUser: map[string][]notification.Token{
+			"elderly-1":  nil,
+			"caregiver-1": {{DeviceTokenID: "cg-dt-1", FCMToken: "cg-fcm-1"}},
+			"caregiver-2": {{DeviceTokenID: "cg-dt-2", FCMToken: "cg-fcm-2"}},
+		},
+	}
+	users := &stubUserRepo{
+		users: map[string]*user.User{
+			"elderly-1":   {ID: "elderly-1", Role: user.RoleElderly},
+			"caregiver-1": {ID: "caregiver-1", Role: user.RoleCaregiver},
+			"caregiver-2": {ID: "caregiver-2", Role: user.RoleCaregiver},
+		},
+		caregivers: map[string][]*user.User{
+			"elderly-1": {
+				{ID: "caregiver-1", Role: user.RoleCaregiver},
+				{ID: "caregiver-2", Role: user.RoleCaregiver},
+			},
+		},
+	}
+	store := &stubEventStore{}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- StartNotificationConsumer(ctx, pubSub, sender, users, lookup, nil, store)
+	}()
+
+	job := NotificationJob{
+		ID:             "job-cg-fanout",
+		PrescriptionID: "rx-cg",
+		UserID:         "elderly-1",
+		MedicamentName: "Aspirin",
+		Dosage:         "100mg",
+		ScheduledAt:    time.Now(),
+	}
+	payload, err := json.Marshal(job)
+	if err != nil {
+		t.Fatalf("marshal job: %v", err)
+	}
+	if err := pubSub.Publish(NotificationTopic, message.NewMessage("msg-cg", payload)); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	// Wait until sender has recorded the 2 caregiver sends (one per caregiver).
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(sender.callsSnapshot()) >= 2 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	calls := sender.callsSnapshot()
+	if len(calls) != 2 {
+		t.Fatalf("expected 2 caregiver Send calls (elderly has no tokens), got %d", len(calls))
+	}
+
+	gotTokens := map[string]bool{}
+	for _, c := range calls {
+		gotTokens[c.FirebaseToken] = true
+	}
+	if !gotTokens["cg-fcm-1"] || !gotTokens["cg-fcm-2"] {
+		t.Fatalf("expected caregiver FCM tokens cg-fcm-1 and cg-fcm-2, got %v", gotTokens)
+	}
+
+	// Skip event for the elderly user must still be recorded.
+	saved := store.savedSnapshot()
+	if len(saved) != 1 {
+		t.Fatalf("expected 1 skip event for elderly user, got %d", len(saved))
+	}
+	if saved[0].Status != StatusSkippedNoTokens {
+		t.Errorf("skip event status = %q, want %q", saved[0].Status, StatusSkippedNoTokens)
+	}
+	if saved[0].UserID != "elderly-1" {
+		t.Errorf("skip event user_id = %q, want %q", saved[0].UserID, "elderly-1")
+	}
+
+	cancel()
+	pubSub.Close()
+	select {
+	case err := <-done:
+		if err != nil && !errors.Is(err, context.Canceled) {
+			t.Fatalf("consumer returned unexpected error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("consumer hung after cancel")
+	}
+}

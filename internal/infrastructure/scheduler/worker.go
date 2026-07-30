@@ -265,8 +265,6 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 				}); err != nil {
 					log.Printf("notification skip-event save failed: %v", err)
 				}
-				msg.Ack()
-				continue
 			}
 
 			// Fan-out: also notify all linked caregivers.
