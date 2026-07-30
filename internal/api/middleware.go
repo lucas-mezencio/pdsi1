@@ -13,8 +13,9 @@ import (
 type contextKey string
 
 const (
-	contextKeyUserID   contextKey = "caller_user_id"
-	contextKeyUserRole contextKey = "caller_user_role"
+	contextKeyUserID      contextKey = "caller_user_id"
+	contextKeyUserRole    contextKey = "caller_user_role"
+	contextKeyFirebaseUID contextKey = "caller_firebase_uid"
 )
 
 // firebaseTokenVerifier is the subset of *auth.Client that AuthMiddleware
@@ -122,6 +123,8 @@ func AuthMiddleware(firebaseAuth firebaseTokenVerifier, demoSecret string, userR
 			}
 
 			ctx := context.WithValue(r.Context(), contextKeyUserID, local.ID)
+			ctx = context.WithValue(ctx, contextKeyFirebaseUID, firebaseToken.UID)
+			ctx = context.WithValue(ctx, contextKeyUserRole, local.Role)
 			r = r.WithContext(ctx)
 
 			next.ServeHTTP(w, r)
@@ -129,9 +132,21 @@ func AuthMiddleware(firebaseAuth firebaseTokenVerifier, demoSecret string, userR
 	}
 }
 
-// callerUserID extracts the caller's user ID from the request context.
+// callerUserID extracts the caller's LOCAL user UUID from the request
+// context. This is the value to use for FK-bound SQL columns (e.g.
+// users.id, user_device_tokens.user_id). For Firebase-specific lookups
+// (e.g. userRepo.FindByFirebaseID), use callerFirebaseUID instead.
 func callerUserID(r *http.Request) string {
 	v, _ := r.Context().Value(contextKeyUserID).(string)
+	return v
+}
+
+// callerFirebaseUID extracts the caller's Firebase UID (the JWT 'sub'
+// claim) from the request context. Use this when the next step needs to
+// query the users.firebase_id column. Do NOT pass this value to UUID-bound
+// SQL columns — that was the prod 404 bug on /users/me/device-tokens.
+func callerFirebaseUID(r *http.Request) string {
+	v, _ := r.Context().Value(contextKeyFirebaseUID).(string)
 	return v
 }
 

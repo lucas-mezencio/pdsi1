@@ -138,6 +138,42 @@ func TestAuthMiddleware_RepoLookupErrorReturns500(t *testing.T) {
 	}
 }
 
+// TestAuthMiddleware_StoresBothCallerUserIDAndFirebaseUID ensures that
+// after a successful auth, both the local UUID and the Firebase UID are
+// available in context under separate keys. Handlers must pick the one
+// matching the column they query (FK → callerUserID; users.firebase_id
+// lookup → callerFirebaseUID). Conflating the two caused the prod 404
+// on POST /users/me/device-tokens.
+func TestAuthMiddleware_StoresBothCallerUserIDAndFirebaseUID(t *testing.T) {
+	const (
+		firebaseUID = "uq1OEy7P0UPOvJIiFwCDNQxMJAW2"
+		localUUID   = "6b1fb275-2efa-4309-b34a-2f8b8abf6e6c"
+	)
+	verifier := &stubFirebaseVerifier{token: &firebaseauth.Token{UID: firebaseUID}}
+	repo := &stubUserRepoForAuth{local: &user.User{ID: localUUID, FirebaseID: firebaseUID}}
+
+	var gotLocal, gotFirebase string
+	handler := AuthMiddleware(verifier, "demo-secret", repo)(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		gotLocal = callerUserID(r)
+		gotFirebase = callerFirebaseUID(r)
+	}))
+
+	req := httptest.NewRequest("GET", "/api/v1/users/me/device-tokens", nil)
+	req.Header.Set("Authorization", "Bearer "+sampleJWT)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body.String())
+	}
+	if gotLocal != localUUID {
+		t.Errorf("callerUserID = %q, want %q (local UUID for FK columns)", gotLocal, localUUID)
+	}
+	if gotFirebase != firebaseUID {
+		t.Errorf("callerFirebaseUID = %q, want %q (Firebase UID for users.firebase_id lookups)", gotFirebase, firebaseUID)
+	}
+}
+
 // TestAuthMiddleware_PublicPathsAndDemoSecretStillWork locks in the bypass
 // behavior introduced by the new userRepo parameter — public routes and the
 // POST /prescriptions demo-secret branch must not touch the repo.
