@@ -79,6 +79,32 @@ func (s *stubUserRepo) IsLinked(context.Context, string, string) (bool, error) {
 func (s *stubUserRepo) LinkUsers(context.Context, string, string) error   { return nil }
 func (s *stubUserRepo) UnlinkUsers(context.Context, string, string) error { return nil }
 
+// stubEventStore records NotificationEvent saves so tests can assert what
+// the consumer persisted for skipped/failed deliveries.
+type stubEventStore struct {
+	mu      sync.Mutex
+	saved   []NotificationEvent
+	saveErr error
+}
+
+func (s *stubEventStore) Save(_ context.Context, event NotificationEvent) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.saveErr != nil {
+		return s.saveErr
+	}
+	s.saved = append(s.saved, event)
+	return nil
+}
+
+func (s *stubEventStore) savedSnapshot() []NotificationEvent {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]NotificationEvent, len(s.saved))
+	copy(out, s.saved)
+	return out
+}
+
 // stubLookup returns active tokens and records TouchLastUsed calls.
 type stubLookup struct {
 	mu           sync.Mutex
@@ -126,7 +152,7 @@ func TestStartNotificationConsumer_TouchLastUsedOnSuccessfulSend(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- StartNotificationConsumer(ctx, pubSub, sender, users, lookup, nil)
+		done <- StartNotificationConsumer(ctx, pubSub, sender, users, lookup, nil, nil)
 	}()
 
 	job := NotificationJob{
@@ -178,5 +204,94 @@ func TestStartNotificationConsumer_TouchLastUsedOnSuccessfulSend(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("consumer did not return after cancel")
+	}
+}
+
+// TestStartNotificationConsumer_NoTokens_AcksAndSkips verifies that when the
+// elderly user has zero active device tokens, the consumer Acks the message
+// (does NOT Nack, which would trigger the watermill redis-stream ResendLoop
+// infinite loop seen in prod), records a SKIPPED_NO_TOKENS event, and exits
+// cleanly on cancel.
+func TestStartNotificationConsumer_NoTokens_AcksAndSkips(t *testing.T) {
+	pubSub := gochannel.NewGoChannel(gochannel.Config{Persistent: true}, watermill.NopLogger{})
+
+	sender := &stubSender{}
+	lookup := &stubLookup{
+		tokensByUser: map[string][]notification.Token{
+			"user-1": nil,
+		},
+	}
+	users := &stubUserRepo{
+		users: map[string]*user.User{
+			"user-1": {ID: "user-1", Role: user.RoleElderly},
+		},
+	}
+	store := &stubEventStore{}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- StartNotificationConsumer(ctx, pubSub, sender, users, lookup, nil, store)
+	}()
+
+	job := NotificationJob{
+		ID:             "job-skip",
+		PrescriptionID: "rx-skip",
+		UserID:         "user-1",
+		MedicamentName: "Aspirin",
+		Dosage:         "100mg",
+		ScheduledAt:    time.Now(),
+	}
+	payload, err := json.Marshal(job)
+	if err != nil {
+		t.Fatalf("marshal job: %v", err)
+	}
+	if err := pubSub.Publish(NotificationTopic, message.NewMessage("msg-skip", payload)); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	// Wait for the skip event to be recorded (consumer must Ack the message
+	// and not loop on it).
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(store.savedSnapshot()) >= 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if calls := sender.callsSnapshot(); len(calls) != 0 {
+		t.Fatalf("expected 0 Send calls for tokens-less user, got %d", len(calls))
+	}
+
+	saved := store.savedSnapshot()
+	if len(saved) != 1 {
+		t.Fatalf("expected 1 skip event recorded, got %d", len(saved))
+	}
+	if saved[0].UserID != "user-1" {
+		t.Errorf("skip event user_id = %q, want %q", saved[0].UserID, "user-1")
+	}
+	if saved[0].Status != StatusSkippedNoTokens {
+		t.Errorf("skip event status = %q, want %q", saved[0].Status, StatusSkippedNoTokens)
+	}
+
+	// Critical regression guard: the consumer must not be stuck in a Nack
+	// ResendLoop. It must exit promptly on cancel.
+	cancel()
+	pubSub.Close()
+	select {
+	case err := <-done:
+		if err != nil && !errors.Is(err, context.Canceled) {
+			t.Fatalf("consumer returned unexpected error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("consumer hung after cancel (possible infinite Nack loop)")
+	}
+
+	// No additional Send calls should have happened after cancel.
+	if calls := sender.callsSnapshot(); len(calls) != 0 {
+		t.Fatalf("sender.Send called %d times after no-tokens skip", len(calls))
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"time"
 
 	"github.com/ThreeDotsLabs/watermill/message"
@@ -158,7 +159,7 @@ func (w *SchedulerWorker) jobsKey() string {
 
 // StartNotificationConsumer consumes notification jobs and sends push notifications.
 // Notifications are sent to the target elderly user AND all their linked caregivers.
-func StartNotificationConsumer(ctx context.Context, subscriber message.Subscriber, sender notification.Sender, userRepo user.Repository, lookup notification.Lookup, cleanup CleanupStore) error {
+func StartNotificationConsumer(ctx context.Context, subscriber message.Subscriber, sender notification.Sender, userRepo user.Repository, lookup notification.Lookup, cleanup CleanupStore, store EventStore) error {
 	if subscriber == nil {
 		return errors.New("subscriber is required")
 	}
@@ -173,6 +174,9 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 	}
 	if lookup == nil {
 		lookup = &noopLookup{}
+	}
+	if store == nil {
+		store = &noopEventStore{}
 	}
 
 	messages, err := subscriber.Subscribe(ctx, NotificationTopic)
@@ -244,8 +248,24 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 					continue
 				}
 			default:
-				log.Printf("notification no tokens for user %s", userEntity.ID)
-				msg.Nack()
+				slog.WarnContext(ctx, "notification skipped: no active tokens",
+					"user_id", userEntity.ID,
+					"job_id", job.ID,
+					"prescription_id", job.PrescriptionID,
+				)
+				if err := store.Save(ctx, NotificationEvent{
+					ID:             job.ID,
+					PrescriptionID: job.PrescriptionID,
+					UserID:         job.UserID,
+					MedicamentName: job.MedicamentName,
+					Dosage:         job.Dosage,
+					ScheduledAt:    job.ScheduledAt,
+					SentAt:         time.Now(),
+					Status:         StatusSkippedNoTokens,
+				}); err != nil {
+					log.Printf("notification skip-event save failed: %v", err)
+				}
+				msg.Ack()
 				continue
 			}
 
