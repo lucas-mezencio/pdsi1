@@ -25,7 +25,7 @@ const (
 	// redis-stream subscriber redelivers Nacked messages immediately (no
 	// sleep), so this counter is the only thing standing between us and
 	// the same infinite loop that bit us on the no-tokens branch.
-	maxSendAttempts = 3
+	maxSendAttempts    = 3
 	attemptMetadataKey = "x-attempt"
 )
 

@@ -10,9 +10,9 @@ import (
 // NotificationEvent outcome statuses. Empty Status is treated as "delivered"
 // for backwards compatibility with rows written before the field existed.
 const (
-	StatusDelivered            = ""
-	StatusSkippedNoTokens      = "skipped_no_tokens"
-	StatusSkippedRetriesDone   = "skipped_retries_exhausted"
+	StatusDelivered          = ""
+	StatusSkippedNoTokens    = "skipped_no_tokens"
+	StatusSkippedRetriesDone = "skipped_retries_exhausted"
 )
 
 type NotificationEvent struct {

@@ -310,7 +310,7 @@ func TestStartNotificationConsumer_NoTokens_StillFansOutToCaregivers(t *testing.
 	sender := &stubSender{}
 	lookup := &stubLookup{
 		tokensByUser: map[string][]notification.Token{
-			"elderly-1":  nil,
+			"elderly-1":   nil,
 			"caregiver-1": {{DeviceTokenID: "cg-dt-1", FCMToken: "cg-fcm-1"}},
 			"caregiver-2": {{DeviceTokenID: "cg-dt-2", FCMToken: "cg-fcm-2"}},
 		},
@@ -413,7 +413,7 @@ func TestStartNotificationConsumer_SendError_BoundedRetryThenAck(t *testing.T) {
 	sender := &stubSender{returnErr: sendErr}
 	lookup := &stubLookup{
 		tokensByUser: map[string][]notification.Token{
-			"elderly-1":    {{DeviceTokenID: "e-dt-1", FCMToken: "e-fcm-1"}},
+			"elderly-1":   {{DeviceTokenID: "e-dt-1", FCMToken: "e-fcm-1"}},
 			"caregiver-1": {{DeviceTokenID: "cg-dt-1", FCMToken: "cg-fcm-1"}},
 		},
 	}
