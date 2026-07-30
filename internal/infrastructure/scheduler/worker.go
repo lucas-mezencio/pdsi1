@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"strconv"
 	"time"
 
 	"github.com/ThreeDotsLabs/watermill/message"
@@ -18,6 +19,14 @@ import (
 
 const (
 	defaultPollInterval = 250 * time.Millisecond
+
+	// maxSendAttempts caps how many times the consumer will redeliver a
+	// notification whose Send() returned an error. The watermill
+	// redis-stream subscriber redelivers Nacked messages immediately (no
+	// sleep), so this counter is the only thing standing between us and
+	// the same infinite loop that bit us on the no-tokens branch.
+	maxSendAttempts = 3
+	attemptMetadataKey = "x-attempt"
 )
 
 type SchedulerWorker struct {
@@ -244,8 +253,18 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 					}
 				}
 				if !sendOK {
-					msg.Nack()
-					continue
+					attempt := readAttempt(msg)
+					if attempt+1 < maxSendAttempts {
+						msg.Metadata[attemptMetadataKey] = strconv.Itoa(attempt + 1)
+						msg.Nack()
+						continue
+					}
+					slog.ErrorContext(ctx, "notification send failed: retries exhausted",
+						"user_id", userEntity.ID,
+						"job_id", job.ID,
+						"attempts", attempt+1,
+					)
+					recordSkipEvent(ctx, store, job, StatusSkippedRetriesDone)
 				}
 			default:
 				slog.WarnContext(ctx, "notification skipped: no active tokens",
@@ -253,18 +272,7 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 					"job_id", job.ID,
 					"prescription_id", job.PrescriptionID,
 				)
-				if err := store.Save(ctx, NotificationEvent{
-					ID:             job.ID,
-					PrescriptionID: job.PrescriptionID,
-					UserID:         job.UserID,
-					MedicamentName: job.MedicamentName,
-					Dosage:         job.Dosage,
-					ScheduledAt:    job.ScheduledAt,
-					SentAt:         time.Now(),
-					Status:         StatusSkippedNoTokens,
-				}); err != nil {
-					log.Printf("notification skip-event save failed: %v", err)
-				}
+				recordSkipEvent(ctx, store, job, StatusSkippedNoTokens)
 			}
 
 			// Fan-out: also notify all linked caregivers.
@@ -297,5 +305,40 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 
 			msg.Ack()
 		}
+	}
+}
+
+// readAttempt extracts the current retry attempt counter from a watermill
+// message's metadata, defaulting to 0 when absent or unparseable.
+func readAttempt(msg *message.Message) int {
+	if msg.Metadata == nil {
+		return 0
+	}
+	raw, ok := msg.Metadata[attemptMetadataKey]
+	if !ok {
+		return 0
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 0 {
+		return 0
+	}
+	return n
+}
+
+// recordSkipEvent persists a notification_event row capturing why a dose's
+// notification did not actually reach the elderly user. Caregiver fan-out
+// still runs after this, so the row reflects only the elderly-user outcome.
+func recordSkipEvent(ctx context.Context, store EventStore, job NotificationJob, status string) {
+	if err := store.Save(ctx, NotificationEvent{
+		ID:             job.ID,
+		PrescriptionID: job.PrescriptionID,
+		UserID:         job.UserID,
+		MedicamentName: job.MedicamentName,
+		Dosage:         job.Dosage,
+		ScheduledAt:    job.ScheduledAt,
+		SentAt:         time.Now(),
+		Status:         status,
+	}); err != nil {
+		log.Printf("notification skip-event save failed: %v", err)
 	}
 }

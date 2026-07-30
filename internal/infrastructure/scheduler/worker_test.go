@@ -396,3 +396,115 @@ func TestStartNotificationConsumer_NoTokens_StillFansOutToCaregivers(t *testing.
 		t.Fatal("consumer hung after cancel")
 	}
 }
+
+// TestStartNotificationConsumer_SendError_BoundedRetryThenAck verifies that
+// when the sender returns an error and the message metadata shows the
+// attempt counter has reached the maximum, the consumer records a
+// SKIPPED_RETRIES_EXHAUSTED event, still fans out to caregivers (which
+// have their own independent tokens), Acks the message (no infinite loop),
+// and exits cleanly on cancel.
+func TestStartNotificationConsumer_SendError_BoundedRetryThenAck(t *testing.T) {
+	pubSub := gochannel.NewGoChannel(gochannel.Config{Persistent: true}, watermill.NopLogger{})
+
+	sendErr := errors.New("fcm 503")
+	sender := &stubSender{returnErr: sendErr}
+	lookup := &stubLookup{
+		tokensByUser: map[string][]notification.Token{
+			"elderly-1":    {{DeviceTokenID: "e-dt-1", FCMToken: "e-fcm-1"}},
+			"caregiver-1": {{DeviceTokenID: "cg-dt-1", FCMToken: "cg-fcm-1"}},
+		},
+	}
+	users := &stubUserRepo{
+		users: map[string]*user.User{
+			"elderly-1":   {ID: "elderly-1", Role: user.RoleElderly},
+			"caregiver-1": {ID: "caregiver-1", Role: user.RoleCaregiver},
+		},
+		caregivers: map[string][]*user.User{
+			"elderly-1": {{ID: "caregiver-1", Role: user.RoleCaregiver}},
+		},
+	}
+	store := &stubEventStore{}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- StartNotificationConsumer(ctx, pubSub, sender, users, lookup, nil, store)
+	}()
+
+	job := NotificationJob{
+		ID:             "job-retry-exhausted",
+		PrescriptionID: "rx-retry",
+		UserID:         "elderly-1",
+		MedicamentName: "Aspirin",
+		Dosage:         "100mg",
+		ScheduledAt:    time.Now(),
+	}
+	payload, err := json.Marshal(job)
+	if err != nil {
+		t.Fatalf("marshal job: %v", err)
+	}
+
+	// Pre-set attempt counter to maxAttempts-1 so the FIRST send failure
+	// immediately exhausts retries (the unit test focuses on the terminal
+	// path, not on driving N redeliveries through the test broker).
+	msg := message.NewMessage("msg-retry", payload)
+	msg.Metadata = map[string]string{
+		"x-attempt": "2",
+	}
+	if err := pubSub.Publish(NotificationTopic, msg); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	// Wait for at least one caregiver Send call (proves fan-out ran after
+	// retries were exhausted) AND the SKIPPED_RETRIES_EXHAUSTED event.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		calls := sender.callsSnapshot()
+		saved := store.savedSnapshot()
+		if len(calls) >= 2 && len(saved) >= 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	calls := sender.callsSnapshot()
+	if len(calls) < 2 {
+		t.Fatalf("expected at least 2 Send calls (elderly + caregiver), got %d", len(calls))
+	}
+
+	saved := store.savedSnapshot()
+	if len(saved) != 1 {
+		t.Fatalf("expected 1 skip event recorded, got %d", len(saved))
+	}
+	if saved[0].Status != StatusSkippedRetriesDone {
+		t.Errorf("skip event status = %q, want %q", saved[0].Status, StatusSkippedRetriesDone)
+	}
+	if saved[0].UserID != "elderly-1" {
+		t.Errorf("skip event user_id = %q, want %q", saved[0].UserID, "elderly-1")
+	}
+
+	// The caregiver Send should have succeeded independently even though the
+	// elderly Send failed.
+	gotCG := false
+	for _, c := range calls {
+		if c.FirebaseToken == "cg-fcm-1" {
+			gotCG = true
+		}
+	}
+	if !gotCG {
+		t.Errorf("expected caregiver FCM token cg-fcm-1 to be sent, got %v", calls)
+	}
+
+	cancel()
+	pubSub.Close()
+	select {
+	case err := <-done:
+		if err != nil && !errors.Is(err, context.Canceled) {
+			t.Fatalf("consumer returned unexpected error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("consumer hung after cancel")
+	}
+}
