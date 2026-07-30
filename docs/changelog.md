@@ -14,6 +14,11 @@ All notable changes to CareConnect are documented here. Versions follow
   tokens; `skipped_retries_exhausted` means the consumer retried 3 times
   and `sender.Send` kept failing. A partial index covers the
   non-empty statuses so the runbook queries stay fast.
+- AuthMiddleware now stores the Firebase UID alongside the local user
+  UUID in request context under a dedicated `caller_firebase_uid` key,
+  exposed via `callerFirebaseUID(r)`. Handlers that need to query
+  `users.firebase_id` (e.g. the auth flow itself) use this; handlers
+  that need FK-bound SQL use `callerUserID(r)`.
 
 ### Fixed
 
@@ -33,6 +38,16 @@ All notable changes to CareConnect are documented here. Versions follow
   Caregivers are the safety net when the elderly person has not
   installed the mobile app, so the fan-out no longer skips on the
   no-tokens path.
+- **Device-token endpoints stopped returning 404 for valid users.** The
+  handler stuffed the LOCAL UUID (resolved by AuthMiddleware) into a
+  struct field named `CallerFirebaseID`; the command handler then
+  re-resolved it via `userRepo.FindByFirebaseID`, which queries
+  `users.firebase_id` with a UUID value and returns `ErrUserNotFound`.
+  Renamed the field to `CallerID`, dropped the redundant
+  `FindByFirebaseID` lookup in both the command and query handlers,
+  and updated the test suite (which previously masked the bug by
+  injecting the wrong value via `withCallerID`). The mobile app can now
+  register its FCM token against the prod API.
 - **Structured observability for caregiver delivery.** The consumer now
   emits `caregiver notification sent` (INFO) and
   `caregiver notification skipped: no active tokens` (WARN) slog events
