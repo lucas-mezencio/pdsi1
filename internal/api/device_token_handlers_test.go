@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	firebaseauth "firebase.google.com/go/v4/auth"
 	"github.com/go-chi/chi/v5"
 
 	"github.com.br/lucas-mezencio/pdsi1/internal/application/commands"
@@ -26,7 +27,7 @@ func stubExtendedServer(
 ) *ExtendedServer {
 	t.Helper()
 	dtCmd := commands.NewDeviceTokenCommandHandler(dtRepo, uRepo)
-	dtQuery := queries.NewDeviceTokenQueryHandler(dtRepo, uRepo)
+	dtQuery := queries.NewDeviceTokenQueryHandler(dtRepo)
 	return NewExtendedServer(
 		uRepo,
 		nil, nil, nil, nil, nil, nil, // existing handlers unused here
@@ -34,10 +35,67 @@ func stubExtendedServer(
 	)
 }
 
-// withCallerID injects a Firebase UID into the request context the way the
-// auth middleware would.
-func withCallerID(req *http.Request, uid string) *http.Request {
-	ctx := context.WithValue(req.Context(), contextKeyUserID, uid)
+// TestRegisterDeviceToken_AuthMiddlewareEndToEnd is the regression guard for
+// the prod 404 bug: a registered, logged-in user hits POST
+// /api/v1/users/me/device-tokens with a valid Firebase Bearer token and gets
+// 404 "user not found" instead of 201.
+//
+// Root cause: AuthMiddleware correctly stores the LOCAL UUID in context, but
+// the handler stuffs it into a field named CallerFirebaseID. The command
+// handler then re-resolves the caller with uRepo.FindByFirebaseID(localUUID),
+// which queries users.firebase_id (not users.id) and returns ErrUserNotFound.
+//
+// stubUserRepoForAuth is strict (only matches by firebase_id == arg) so this
+// test reproduces the prod failure mode; the looser fakeUserRepoByFirebase
+// used by the other handler tests would mask the bug.
+func TestRegisterDeviceToken_AuthMiddlewareEndToEnd(t *testing.T) {
+	const (
+		firebaseUID = "uq1OEy7P0UPOvJIiFwCDNQxMJAW2"
+		localUUID   = "6b1fb275-2efa-4309-b34a-2f8b8abf6e6c"
+	)
+
+	var savedUserID string
+	dtRepo := &fakeDeviceTokenRepo{
+		saveFn: func(_ context.Context, dt *devicetoken.DeviceToken) (*devicetoken.DeviceToken, error) {
+			savedUserID = dt.UserID
+			dt.ID = "dt-1"
+			return dt, nil
+		},
+	}
+	// Use the STRICT stubUserRepoForAuth for both AuthMiddleware and the
+	// device-token handler. fakeUserRepoByFirebase accepts any string for
+	// FindByFirebaseID and would mask the bug.
+	userRepo := &stubUserRepoForAuth{local: &user.User{ID: localUUID, FirebaseID: firebaseUID}}
+	s := stubExtendedServer(t, dtRepo, userRepo)
+
+	verifier := &stubFirebaseVerifier{token: &firebaseauth.Token{UID: firebaseUID}}
+
+	handler := AuthMiddleware(verifier, "demo-secret", userRepo)(
+		http.HandlerFunc(s.RegisterDeviceToken),
+	)
+
+	body := strings.NewReader(`{"token":"fcm-abc-12345"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/users/me/device-tokens", body)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+sampleJWT)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created, got %d body=%s (AuthMiddleware→handler integration broken — see callerFirebaseUID/callerUserID context keys)", rr.Code, rr.Body.String())
+	}
+	if savedUserID != localUUID {
+		t.Fatalf("expected saved user_id=%q (local UUID), got %q (handler leaked Firebase UID or lost the local UUID)", localUUID, savedUserID)
+	}
+}
+
+// withCallerID injects the LOCAL user UUID into the request context the way
+// AuthMiddleware does after resolving a Firebase UID. (Historically this
+// helper was misnamed because the device-token handler stuffed the value
+// into a field called CallerFirebaseID; the value was always the local UUID.)
+func withCallerID(req *http.Request, localID string) *http.Request {
+	ctx := context.WithValue(req.Context(), contextKeyUserID, localID)
 	return req.WithContext(ctx)
 }
 
@@ -55,7 +113,7 @@ func TestPostDeviceToken_Success(t *testing.T) {
 	body := strings.NewReader(`{"token":"fcm-abc-12345"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/users/me/device-tokens", body)
 	req.Header.Set("Content-Type", "application/json")
-	req = withCallerID(req, "fb-uid")
+	req = withCallerID(req, localID)
 	rr := httptest.NewRecorder()
 
 	s.RegisterDeviceToken(rr, req)
@@ -81,7 +139,7 @@ func TestPostDeviceToken_InvalidBody(t *testing.T) {
 	body := strings.NewReader(`{"token":"ab"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/users/me/device-tokens", body)
 	req.Header.Set("Content-Type", "application/json")
-	req = withCallerID(req, "fb-uid")
+	req = withCallerID(req, "11111111-1111-1111-1111-111111111111")
 	rr := httptest.NewRecorder()
 
 	s.RegisterDeviceToken(rr, req)
@@ -104,7 +162,7 @@ func TestListDeviceTokens(t *testing.T) {
 	s := stubExtendedServer(t, dtRepo, uRepo)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/me/device-tokens", nil)
-	req = withCallerID(req, "fb-uid")
+	req = withCallerID(req, localID)
 	rr := httptest.NewRecorder()
 
 	s.ListDeviceTokens(rr, req)
@@ -138,7 +196,7 @@ func TestDeleteDeviceToken_NotOwner(t *testing.T) {
 	s := stubExtendedServer(t, dtRepo, uRepo)
 
 	req := deleteRequest("/api/v1/users/me/device-tokens/dt-1")
-	req = withCallerID(req, "fb-uid")
+	req = withCallerID(req, "self")
 	rr := httptest.NewRecorder()
 
 	s.DeleteDeviceToken(rr, req)
@@ -163,7 +221,7 @@ func TestSetDeviceTokenEnabled(t *testing.T) {
 
 	body := bytes.NewReader([]byte(`{"enabled":false}`))
 	req := patchRequest("/api/v1/users/me/device-tokens/dt-1/enabled", body)
-	req = withCallerID(req, "fb-uid")
+	req = withCallerID(req, localID)
 	rr := httptest.NewRecorder()
 
 	s.SetDeviceTokenEnabled(rr, req)

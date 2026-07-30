@@ -9,15 +9,14 @@ import (
 
     "github.com.br/lucas-mezencio/pdsi1/internal/application"
     "github.com.br/lucas-mezencio/pdsi1/internal/domain/devicetoken"
-    "github.com.br/lucas-mezencio/pdsi1/internal/domain/user"
 )
 
 type mockDeviceTokenRepo struct {
-    saveFn          func(ctx context.Context, t *devicetoken.DeviceToken) (*devicetoken.DeviceToken, error)
-    findByIDFn      func(ctx context.Context, id string) (*devicetoken.DeviceToken, error)
-    findByUserIDFn  func(ctx context.Context, userID string) ([]*devicetoken.DeviceToken, error)
-    deleteFn        func(ctx context.Context, id string) error
-    setEnabledFn    func(ctx context.Context, id string, enabled bool) (*devicetoken.DeviceToken, error)
+    saveFn       func(ctx context.Context, t *devicetoken.DeviceToken) (*devicetoken.DeviceToken, error)
+    findByIDFn   func(ctx context.Context, id string) (*devicetoken.DeviceToken, error)
+    findByUserIDFn func(ctx context.Context, userID string) ([]*devicetoken.DeviceToken, error)
+    deleteFn     func(ctx context.Context, id string) error
+    setEnabledFn func(ctx context.Context, id string, enabled bool) (*devicetoken.DeviceToken, error)
     touchLastUsedFn func(ctx context.Context, id string) error
 }
 
@@ -40,36 +39,6 @@ func (m *mockDeviceTokenRepo) TouchLastUsed(ctx context.Context, id string) erro
     return m.touchLastUsedFn(ctx, id)
 }
 
-// mockDeviceTokenUserRepo is a minimal user.Repository mock for device-token tests.
-// Renamed to avoid collision with the existing mockUserRepo in user_commands_test.go.
-type mockDeviceTokenUserRepo struct {
-    findByFirebaseIDFn func(ctx context.Context, fid string) (*user.User, error)
-}
-
-func (m *mockDeviceTokenUserRepo) FindByFirebaseID(ctx context.Context, fid string) (*user.User, error) {
-    return m.findByFirebaseIDFn(ctx, fid)
-}
-
-// Other user.Repository methods are stubs that fail loudly:
-func (m *mockDeviceTokenUserRepo) Save(context.Context, *user.User) error { panic("not used") }
-func (m *mockDeviceTokenUserRepo) FindByID(context.Context, string) (*user.User, error) { panic("not used") }
-func (m *mockDeviceTokenUserRepo) FindByEmail(context.Context, string) (*user.User, error) { panic("not used") }
-func (m *mockDeviceTokenUserRepo) FindAll(context.Context) ([]*user.User, error) { panic("not used") }
-func (m *mockDeviceTokenUserRepo) Delete(context.Context, string) error { panic("not used") }
-func (m *mockDeviceTokenUserRepo) Exists(context.Context, string) (bool, error) { panic("not used") }
-func (m *mockDeviceTokenUserRepo) FindCaregivers(context.Context, string) ([]*user.User, error) { panic("not used") }
-func (m *mockDeviceTokenUserRepo) FindCharges(context.Context, string) ([]*user.User, error) { panic("not used") }
-func (m *mockDeviceTokenUserRepo) IsLinked(context.Context, string, string) (bool, error) { panic("not used") }
-func (m *mockDeviceTokenUserRepo) LinkUsers(context.Context, string, string) error { panic("not used") }
-func (m *mockDeviceTokenUserRepo) UnlinkUsers(context.Context, string, string) error { panic("not used") }
-
-func newDeviceTokenHandler(
-    dtRepo devicetoken.Repository,
-    uRepo user.Repository,
-) *DeviceTokenCommandHandler {
-    return NewDeviceTokenCommandHandler(dtRepo, uRepo)
-}
-
 func TestRegisterDeviceToken_Success(t *testing.T) {
     userID := uuid.New().String()
     dtRepo := &mockDeviceTokenRepo{
@@ -78,15 +47,10 @@ func TestRegisterDeviceToken_Success(t *testing.T) {
             return t, nil
         },
     }
-    uRepo := &mockDeviceTokenUserRepo{
-        findByFirebaseIDFn: func(ctx context.Context, fid string) (*user.User, error) {
-            return &user.User{ID: userID}, nil
-        },
-    }
 
-    h := newDeviceTokenHandler(dtRepo, uRepo)
+    h := NewDeviceTokenCommandHandler(dtRepo, nil)
     got, err := h.RegisterDeviceToken(context.Background(),
-        RegisterDeviceTokenCommand{CallerFirebaseID: "fb-uid", Token: "fcm-abc-12345"})
+        RegisterDeviceTokenCommand{CallerID: userID, Token: "fcm-abc-12345"})
 
     if err != nil {
         t.Fatalf("unexpected error: %v", err)
@@ -100,15 +64,10 @@ func TestRegisterDeviceToken_Success(t *testing.T) {
 }
 
 func TestRegisterDeviceToken_InvalidToken(t *testing.T) {
-    uRepo := &mockDeviceTokenUserRepo{
-        findByFirebaseIDFn: func(ctx context.Context, fid string) (*user.User, error) {
-            return &user.User{ID: uuid.New().String()}, nil
-        },
-    }
-    h := newDeviceTokenHandler(&mockDeviceTokenRepo{}, uRepo)
+    h := NewDeviceTokenCommandHandler(&mockDeviceTokenRepo{}, nil)
 
     _, err := h.RegisterDeviceToken(context.Background(),
-        RegisterDeviceTokenCommand{CallerFirebaseID: "fb-uid", Token: "ab"})
+        RegisterDeviceTokenCommand{CallerID: uuid.New().String(), Token: "ab"})
     if !errors.Is(err, application.ErrInvalidInput) {
         t.Fatalf("expected ErrInvalidInput, got %v", err)
     }
@@ -120,15 +79,10 @@ func TestRegisterDeviceToken_Conflict(t *testing.T) {
             return nil, devicetoken.ErrConflict
         },
     }
-    uRepo := &mockDeviceTokenUserRepo{
-        findByFirebaseIDFn: func(ctx context.Context, fid string) (*user.User, error) {
-            return &user.User{ID: uuid.New().String()}, nil
-        },
-    }
 
-    h := newDeviceTokenHandler(dtRepo, uRepo)
+    h := NewDeviceTokenCommandHandler(dtRepo, nil)
     _, err := h.RegisterDeviceToken(context.Background(),
-        RegisterDeviceTokenCommand{CallerFirebaseID: "fb-uid", Token: "fcm-abc-12345"})
+        RegisterDeviceTokenCommand{CallerID: uuid.New().String(), Token: "fcm-abc-12345"})
 
     if !errors.Is(err, application.ErrConflict) {
         t.Fatalf("expected ErrConflict, got %v", err)
@@ -148,15 +102,10 @@ func TestDeleteDeviceToken_Forbidden(t *testing.T) {
             return nil
         },
     }
-    uRepo := &mockDeviceTokenUserRepo{
-        findByFirebaseIDFn: func(ctx context.Context, fid string) (*user.User, error) {
-            return &user.User{ID: otherID}, nil
-        },
-    }
 
-    h := newDeviceTokenHandler(dtRepo, uRepo)
+    h := NewDeviceTokenCommandHandler(dtRepo, nil)
     err := h.DeleteDeviceToken(context.Background(),
-        DeleteDeviceTokenCommand{CallerFirebaseID: "fb-uid", TokenID: "dt-1"})
+        DeleteDeviceTokenCommand{CallerID: otherID, TokenID: "dt-1"})
 
     if !errors.Is(err, application.ErrForbidden) {
         t.Fatalf("expected ErrForbidden, got %v", err)
@@ -176,15 +125,10 @@ func TestSetDeviceTokenEnabled_Success(t *testing.T) {
             return &devicetoken.DeviceToken{ID: id, UserID: userID, Enabled: false}, nil
         },
     }
-    uRepo := &mockDeviceTokenUserRepo{
-        findByFirebaseIDFn: func(ctx context.Context, fid string) (*user.User, error) {
-            return &user.User{ID: userID}, nil
-        },
-    }
 
-    h := newDeviceTokenHandler(dtRepo, uRepo)
+    h := NewDeviceTokenCommandHandler(dtRepo, nil)
     got, err := h.SetDeviceTokenEnabled(context.Background(),
-        SetDeviceTokenEnabledCommand{CallerFirebaseID: "fb-uid", TokenID: "dt-1", Enabled: false})
+        SetDeviceTokenEnabledCommand{CallerID: userID, TokenID: "dt-1", Enabled: false})
     if err != nil {
         t.Fatalf("unexpected error: %v", err)
     }

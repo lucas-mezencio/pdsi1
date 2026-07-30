@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
+	"strconv"
 	"time"
 
 	"github.com/ThreeDotsLabs/watermill/message"
@@ -17,6 +19,14 @@ import (
 
 const (
 	defaultPollInterval = 250 * time.Millisecond
+
+	// maxSendAttempts caps how many times the consumer will redeliver a
+	// notification whose Send() returned an error. The watermill
+	// redis-stream subscriber redelivers Nacked messages immediately (no
+	// sleep), so this counter is the only thing standing between us and
+	// the same infinite loop that bit us on the no-tokens branch.
+	maxSendAttempts    = 3
+	attemptMetadataKey = "x-attempt"
 )
 
 type SchedulerWorker struct {
@@ -158,7 +168,7 @@ func (w *SchedulerWorker) jobsKey() string {
 
 // StartNotificationConsumer consumes notification jobs and sends push notifications.
 // Notifications are sent to the target elderly user AND all their linked caregivers.
-func StartNotificationConsumer(ctx context.Context, subscriber message.Subscriber, sender notification.Sender, userRepo user.Repository, lookup notification.Lookup, cleanup CleanupStore) error {
+func StartNotificationConsumer(ctx context.Context, subscriber message.Subscriber, sender notification.Sender, userRepo user.Repository, lookup notification.Lookup, cleanup CleanupStore, store EventStore) error {
 	if subscriber == nil {
 		return errors.New("subscriber is required")
 	}
@@ -173,6 +183,9 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 	}
 	if lookup == nil {
 		lookup = &noopLookup{}
+	}
+	if store == nil {
+		store = &noopEventStore{}
 	}
 
 	messages, err := subscriber.Subscribe(ctx, NotificationTopic)
@@ -240,13 +253,26 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 					}
 				}
 				if !sendOK {
-					msg.Nack()
-					continue
+					attempt := readAttempt(msg)
+					if attempt+1 < maxSendAttempts {
+						msg.Metadata[attemptMetadataKey] = strconv.Itoa(attempt + 1)
+						msg.Nack()
+						continue
+					}
+					slog.ErrorContext(ctx, "notification send failed: retries exhausted",
+						"user_id", userEntity.ID,
+						"job_id", job.ID,
+						"attempts", attempt+1,
+					)
+					recordSkipEvent(ctx, store, job, StatusSkippedRetriesDone)
 				}
 			default:
-				log.Printf("notification no tokens for user %s", userEntity.ID)
-				msg.Nack()
-				continue
+				slog.WarnContext(ctx, "notification skipped: no active tokens",
+					"user_id", userEntity.ID,
+					"job_id", job.ID,
+					"prescription_id", job.PrescriptionID,
+				)
+				recordSkipEvent(ctx, store, job, StatusSkippedNoTokens)
 			}
 
 			// Fan-out: also notify all linked caregivers.
@@ -259,6 +285,14 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 				if cgLookupErr != nil {
 					log.Printf("caregiver token lookup failed for %s: %v", cg.ID, cgLookupErr)
 				}
+				if len(cgTokens) == 0 {
+					slog.WarnContext(ctx, "caregiver notification skipped: no active tokens",
+						"caregiver_id", cg.ID,
+						"job_id", job.ID,
+						"prescription_id", job.PrescriptionID,
+					)
+					continue
+				}
 				for _, t := range cgTokens {
 					cgNote := notification.Notification{
 						UserID:         job.UserID,
@@ -270,7 +304,14 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 					}
 					if err := sender.Send(ctx, cgNote); err != nil {
 						log.Printf("caregiver notification send failed for %s: %v", cg.ID, err)
+						continue
 					}
+					slog.InfoContext(ctx, "caregiver notification sent",
+						"caregiver_id", cg.ID,
+						"job_id", job.ID,
+						"prescription_id", job.PrescriptionID,
+						"device_token_id", t.DeviceTokenID,
+					)
 					if err := lookup.TouchLastUsed(ctx, t.DeviceTokenID); err != nil {
 						log.Printf("caregiver device token touch last-used failed for %s: %v", t.DeviceTokenID, err)
 					}
@@ -279,5 +320,40 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 
 			msg.Ack()
 		}
+	}
+}
+
+// readAttempt extracts the current retry attempt counter from a watermill
+// message's metadata, defaulting to 0 when absent or unparseable.
+func readAttempt(msg *message.Message) int {
+	if msg.Metadata == nil {
+		return 0
+	}
+	raw, ok := msg.Metadata[attemptMetadataKey]
+	if !ok {
+		return 0
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 0 {
+		return 0
+	}
+	return n
+}
+
+// recordSkipEvent persists a notification_event row capturing why a dose's
+// notification did not actually reach the elderly user. Caregiver fan-out
+// still runs after this, so the row reflects only the elderly-user outcome.
+func recordSkipEvent(ctx context.Context, store EventStore, job NotificationJob, status string) {
+	if err := store.Save(ctx, NotificationEvent{
+		ID:             job.ID,
+		PrescriptionID: job.PrescriptionID,
+		UserID:         job.UserID,
+		MedicamentName: job.MedicamentName,
+		Dosage:         job.Dosage,
+		ScheduledAt:    job.ScheduledAt,
+		SentAt:         time.Now(),
+		Status:         status,
+	}); err != nil {
+		log.Printf("notification skip-event save failed: %v", err)
 	}
 }

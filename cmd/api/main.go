@@ -185,7 +185,7 @@ func main() {
 	linkedUserQueries := queries.NewLinkedUserQueryHandler(userRepo, invitationRepo)
 	lgpdQueries := queries.NewLGPDQueryHandler(userRepo, prescriptionRepo, doseRecordRepo, invitationRepo)
 	deviceTokenCommands := commands.NewDeviceTokenCommandHandler(deviceTokenRepo, userRepo)
-	deviceTokenQueries := queries.NewDeviceTokenQueryHandler(deviceTokenRepo, userRepo)
+	deviceTokenQueries := queries.NewDeviceTokenQueryHandler(deviceTokenRepo)
 
 	apiServer := httpapi.NewServer(
 		userCommands,
@@ -232,7 +232,7 @@ func main() {
 
 	g.Go(func() error {
 		cleanup := scheduler.NewRedisCleanupStore(redisClient, "")
-		if err := scheduler.StartNotificationConsumer(gCtx, subscriber, sender, userRepo, lookup, cleanup); err != nil && !errors.Is(err, context.Canceled) {
+		if err := scheduler.StartNotificationConsumer(gCtx, subscriber, sender, userRepo, lookup, cleanup, eventStore); err != nil && !errors.Is(err, context.Canceled) {
 			return fmt.Errorf("notification consumer stopped: %w", err)
 		}
 		return nil

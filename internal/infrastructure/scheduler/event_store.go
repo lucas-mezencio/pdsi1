@@ -7,6 +7,14 @@ import (
 	"github.com.br/lucas-mezencio/pdsi1/internal/infrastructure/notification"
 )
 
+// NotificationEvent outcome statuses. Empty Status is treated as "delivered"
+// for backwards compatibility with rows written before the field existed.
+const (
+	StatusDelivered          = ""
+	StatusSkippedNoTokens    = "skipped_no_tokens"
+	StatusSkippedRetriesDone = "skipped_retries_exhausted"
+)
+
 type NotificationEvent struct {
 	ID             string
 	PrescriptionID string
@@ -15,6 +23,7 @@ type NotificationEvent struct {
 	Dosage         string
 	ScheduledAt    time.Time
 	SentAt         time.Time
+	Status         string
 }
 
 type EventStore interface {
