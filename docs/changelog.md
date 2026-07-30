@@ -5,6 +5,16 @@ All notable changes to CareConnect are documented here. Versions follow
 
 ## [Unreleased]
 
+### Added
+
+- `notification_events.status` column (migration `0010`) tracking the
+  per-dose outcome. Empty `''` means delivered (preserves the existing
+  semantics for rows written before the column existed);
+  `skipped_no_tokens` means the elderly user has zero active device
+  tokens; `skipped_retries_exhausted` means the consumer retried 3 times
+  and `sender.Send` kept failing. A partial index covers the
+  non-empty statuses so the runbook queries stay fast.
+
 ### Fixed
 
 - **Notification consumer infinite-loop hotfix.** When a scheduled dose's
