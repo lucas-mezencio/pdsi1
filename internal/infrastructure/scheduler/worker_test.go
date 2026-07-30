@@ -1,9 +1,12 @@
 package scheduler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -495,6 +498,135 @@ func TestStartNotificationConsumer_SendError_BoundedRetryThenAck(t *testing.T) {
 	}
 	if !gotCG {
 		t.Errorf("expected caregiver FCM token cg-fcm-1 to be sent, got %v", calls)
+	}
+
+	cancel()
+	pubSub.Close()
+	select {
+	case err := <-done:
+		if err != nil && !errors.Is(err, context.Canceled) {
+			t.Fatalf("consumer returned unexpected error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("consumer hung after cancel")
+	}
+}
+
+// captureLogs swaps slog.Default() for a buffer-backed JSON handler at
+// LevelDebug for the duration of the test, restoring the original logger
+// afterwards. Returns the buffer so the test can assert on what was
+// written.
+func captureLogs(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	original := slog.Default()
+	t.Cleanup(func() { slog.SetDefault(original) })
+
+	buf := &bytes.Buffer{}
+	handler := slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug})
+	slog.SetDefault(slog.New(handler))
+	return buf
+}
+
+// findLogEntry decodes the JSON-lines log buffer and returns the first
+// entry whose msg field matches. Returns nil if not found.
+func findLogEntry(t *testing.T, buf *bytes.Buffer, msg string) map[string]any {
+	t.Helper()
+	for _, line := range strings.Split(buf.String(), "\n") {
+		if line == "" {
+			continue
+		}
+		var entry map[string]any
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			continue
+		}
+		if entry["msg"] == msg {
+			return entry
+		}
+	}
+	return nil
+}
+
+// TestStartNotificationConsumer_CaregiverObservability verifies that the
+// caregiver fan-out emits structured slog events so the log aggregator can
+// count notifications sent and skipped per caregiver (Layer 5).
+func TestStartNotificationConsumer_CaregiverObservability(t *testing.T) {
+	buf := captureLogs(t)
+
+	pubSub := gochannel.NewGoChannel(gochannel.Config{Persistent: true}, watermill.NopLogger{})
+
+	sender := &stubSender{}
+	lookup := &stubLookup{
+		tokensByUser: map[string][]notification.Token{
+			"elderly-1":   nil,
+			"caregiver-1": nil,
+			"caregiver-2": {{DeviceTokenID: "cg-dt-2", FCMToken: "cg-fcm-2"}},
+		},
+	}
+	users := &stubUserRepo{
+		users: map[string]*user.User{
+			"elderly-1":   {ID: "elderly-1", Role: user.RoleElderly},
+			"caregiver-1": {ID: "caregiver-1", Role: user.RoleCaregiver},
+			"caregiver-2": {ID: "caregiver-2", Role: user.RoleCaregiver},
+		},
+		caregivers: map[string][]*user.User{
+			"elderly-1": {
+				{ID: "caregiver-1", Role: user.RoleCaregiver},
+				{ID: "caregiver-2", Role: user.RoleCaregiver},
+			},
+		},
+	}
+	store := &stubEventStore{}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- StartNotificationConsumer(ctx, pubSub, sender, users, lookup, nil, store)
+	}()
+
+	job := NotificationJob{
+		ID:             "job-obs",
+		PrescriptionID: "rx-obs",
+		UserID:         "elderly-1",
+		MedicamentName: "Aspirin",
+		Dosage:         "100mg",
+		ScheduledAt:    time.Now(),
+	}
+	payload, err := json.Marshal(job)
+	if err != nil {
+		t.Fatalf("marshal job: %v", err)
+	}
+	if err := pubSub.Publish(NotificationTopic, message.NewMessage("msg-obs", payload)); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if findLogEntry(t, buf, "caregiver notification sent") != nil &&
+			findLogEntry(t, buf, "caregiver notification skipped: no active tokens") != nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	sent := findLogEntry(t, buf, "caregiver notification sent")
+	if sent == nil {
+		t.Fatalf("expected 'caregiver notification sent' log entry")
+	}
+	if sent["caregiver_id"] != "caregiver-2" {
+		t.Errorf("sent caregiver_id = %v, want caregiver-2", sent["caregiver_id"])
+	}
+	if sent["job_id"] != "job-obs" {
+		t.Errorf("sent job_id = %v, want job-obs", sent["job_id"])
+	}
+
+	skipped := findLogEntry(t, buf, "caregiver notification skipped: no active tokens")
+	if skipped == nil {
+		t.Fatalf("expected 'caregiver notification skipped' log entry for tokens-less caregiver")
+	}
+	if skipped["caregiver_id"] != "caregiver-1" {
+		t.Errorf("skipped caregiver_id = %v, want caregiver-1", skipped["caregiver_id"])
 	}
 
 	cancel()

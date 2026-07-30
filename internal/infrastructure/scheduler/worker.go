@@ -285,6 +285,14 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 				if cgLookupErr != nil {
 					log.Printf("caregiver token lookup failed for %s: %v", cg.ID, cgLookupErr)
 				}
+				if len(cgTokens) == 0 {
+					slog.WarnContext(ctx, "caregiver notification skipped: no active tokens",
+						"caregiver_id", cg.ID,
+						"job_id", job.ID,
+						"prescription_id", job.PrescriptionID,
+					)
+					continue
+				}
 				for _, t := range cgTokens {
 					cgNote := notification.Notification{
 						UserID:         job.UserID,
@@ -296,7 +304,14 @@ func StartNotificationConsumer(ctx context.Context, subscriber message.Subscribe
 					}
 					if err := sender.Send(ctx, cgNote); err != nil {
 						log.Printf("caregiver notification send failed for %s: %v", cg.ID, err)
+						continue
 					}
+					slog.InfoContext(ctx, "caregiver notification sent",
+						"caregiver_id", cg.ID,
+						"job_id", job.ID,
+						"prescription_id", job.PrescriptionID,
+						"device_token_id", t.DeviceTokenID,
+					)
 					if err := lookup.TouchLastUsed(ctx, t.DeviceTokenID); err != nil {
 						log.Printf("caregiver device token touch last-used failed for %s: %v", t.DeviceTokenID, err)
 					}

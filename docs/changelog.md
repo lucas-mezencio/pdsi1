@@ -3,6 +3,38 @@
 All notable changes to CareConnect are documented here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **Notification consumer infinite-loop hotfix.** When a scheduled dose's
+  elderly user had zero active device tokens, the consumer previously
+  called `msg.Nack()` and continued. The watermill redis-stream
+  subscriber treats Nack as "redeliver immediately" (`NackResendSleep`
+  defaults to `NoSleep`), which produced the ~1ms-cadence
+  `notification no tokens for user ...` log spam observed in prod and
+  also blocked the caregiver fan-out (caregivers never received their
+  notification). The consumer now Acks on the first encounter, logs at
+  `WARN` level, and records a `skipped_no_tokens` row in
+  `notification_events`. The same hotfix applies to the
+  send-error branch, which now uses a bounded per-message retry counter
+  (`x-attempt` metadata, capped at 3) instead of Nacking forever.
+- **Caregiver fan-out now runs when the elderly user has no tokens.**
+  Caregivers are the safety net when the elderly person has not
+  installed the mobile app, so the fan-out no longer skips on the
+  no-tokens path.
+- **Structured observability for caregiver delivery.** The consumer now
+  emits `caregiver notification sent` (INFO) and
+  `caregiver notification skipped: no active tokens` (WARN) slog events
+  with `caregiver_id`, `job_id`, `prescription_id`, and
+  `device_token_id` attributes for log-aggregator counting.
+
+### Docs
+
+- New `docs/runbooks/notification-skips.md` with SQL queries to find
+  tokens-less users, detect FCM outages, and spot regressions of the
+  original infinite-loop bug.
+
 ## [v0.4.0] — 2026-07-20
 
 ### Added
