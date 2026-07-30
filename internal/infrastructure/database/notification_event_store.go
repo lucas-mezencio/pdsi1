@@ -25,8 +25,8 @@ func (s *NotificationEventStore) Save(ctx context.Context, event scheduler.Notif
 
 	query := `
 		INSERT INTO notification_events (
-			id, prescription_id, user_id, medicament_name, dosage, scheduled_at, sent_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7)
+			id, prescription_id, user_id, medicament_name, dosage, scheduled_at, sent_at, status
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 
 	if _, err := s.db.ExecContext(
@@ -39,6 +39,7 @@ func (s *NotificationEventStore) Save(ctx context.Context, event scheduler.Notif
 		event.Dosage,
 		event.ScheduledAt,
 		event.SentAt,
+		event.Status,
 	); err != nil {
 		return fmt.Errorf("save notification event: %w", err)
 	}
