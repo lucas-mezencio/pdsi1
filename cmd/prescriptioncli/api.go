@@ -51,8 +51,16 @@ func New(baseURL, secret string) *API {
 	return &API{BaseURL: baseURL, Secret: secret, HTTP: http.DefaultClient}
 }
 
-type loginResponse struct {
+type loginUser struct {
 	ID string `json:"id"`
+}
+
+// loginResponse mirrors gen.AuthResponse — see internal/api/server.go:348
+// and client/client.gen.go:67. The user UUID is nested under "user.id",
+// not at the top level.
+type loginResponse struct {
+	Token string    `json:"token"`
+	User  loginUser `json:"user"`
 }
 
 func (a *API) Login(ctx context.Context, email, pw string) (string, error) {
@@ -78,10 +86,10 @@ func (a *API) Login(ctx context.Context, email, pw string) (string, error) {
 	if err := json.Unmarshal(data, &lr); err != nil {
 		return "", fmt.Errorf("decode login response: %w", err)
 	}
-	if lr.ID == "" {
-		return "", fmt.Errorf("login response missing id")
+	if lr.User.ID == "" {
+		return "", fmt.Errorf("login response missing user.id")
 	}
-	return lr.ID, nil
+	return lr.User.ID, nil
 }
 
 func (a *API) CreatePrescription(ctx context.Context, p Prescription) (*PrescriptionResponse, error) {

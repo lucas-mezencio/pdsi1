@@ -23,7 +23,17 @@ func TestLogin_Success(t *testing.T) {
 			t.Errorf("unexpected body: %v", body)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"id": "u-1", "email": "a@b.com"})
+		// Mirror the real AuthResponse shape returned by internal/api/server.go:348:
+		// { "token": "...", "user": { "id": "<uuid>", ... } }
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"token": "jwt-token",
+			"user": map[string]any{
+				"id":    "u-1",
+				"email": "a@b.com",
+				"name":  "Test",
+				"phone": "+1",
+			},
+		})
 	}))
 	defer srv.Close()
 
