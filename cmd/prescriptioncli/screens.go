@@ -216,17 +216,75 @@ func (s formScreen) view() string {
 }
 
 type confirmScreen struct {
-	data     sessionData
-	userID   string
-	medicID  string
-	shifted  string
-	err      error
+	data    sessionData
+	userID  string
+	medicID string
+	shifted string
+	err     error
 }
 
-func newConfirmScreen(d sessionData) confirmScreen { return confirmScreen{data: d} }
+func newConfirmScreen(d sessionData) confirmScreen {
+	shifted, err := shiftStartTime(d.StartTime)
+	return confirmScreen{data: d, shifted: shifted, err: err}
+}
 
-func (s confirmScreen) update(msg tea.Msg) (confirmScreen, tea.Cmd) { return s, nil }
-func (s confirmScreen) view() string                              { return "" }
+func (s confirmScreen) update(msg tea.Msg) (confirmScreen, tea.Cmd) {
+	if km, ok := msg.(tea.KeyMsg); ok {
+		switch km.String() {
+		case "y", "Y":
+			if s.err != nil {
+				return s, nil
+			}
+			return s, tea.Batch(transitionMsg(stageSubmitting), submitCmd(currentAPI(), s.medicID, s.userID, s.data))
+		case "n", "N", "esc":
+			return s, transitionMsg(stageForm)
+		}
+	}
+	return s, nil
+}
+
+func (s confirmScreen) view() string {
+	if s.err != nil {
+		return StyleError.Render(fmt.Sprintf("invalid start time: %v", s.err))
+	}
+	summary := fmt.Sprintf(
+		"%s %s\n%s %s\n%s %s\n%s %s (+3h -> %s)\n%s %d\n%s %s\n%s %s",
+		StyleSummaryKey.Render("Medication:"), StyleSummaryValue.Render(s.data.Name),
+		StyleSummaryKey.Render("Dose:"), StyleSummaryValue.Render(s.data.Dosage),
+		StyleSummaryKey.Render("Frequency:"), StyleSummaryValue.Render(s.data.Frequency),
+		StyleSummaryKey.Render("Start time:"), StyleSummaryValue.Render(s.data.StartTime), StyleSummaryValue.Render(s.shifted),
+		StyleSummaryKey.Render("Doses:"), s.data.Doses,
+		StyleSummaryKey.Render("User ID:"), StyleSummaryValue.Render(s.userID),
+		StyleSummaryKey.Render("Doctor ID:"), StyleSummaryValue.Render(s.medicID),
+	)
+	return StyleTitle.Render("prescriptioncli — confirm") + "\n" +
+		StyleBox.Render(summary) + "\n" +
+		StyleSubtle.Render("y to submit · n to go back · ctrl+c to quit")
+}
+
+type submitRef struct {
+	medicID string
+	userID  string
+	data    sessionData
+}
+
+func submitCmd(api *API, medicID, userID string, d sessionData) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := api.CreatePrescription(context.Background(), Prescription{
+			UserID:    userID,
+			MedicID:   medicID,
+			Name:      d.Name,
+			Dosage:    d.Dosage,
+			Frequency: d.Frequency,
+			StartTime: d.StartTime,
+			Doses:     d.Doses,
+		})
+		if err != nil {
+			return prescriptionFailedMsg{err: err}
+		}
+		return prescriptionCreatedMsg{resp: resp}
+	}
+}
 
 type submittingScreen struct {
 	spinner spinner.Model
@@ -251,5 +309,29 @@ type doneScreen struct {
 	err     string
 }
 
-func (s doneScreen) update(msg tea.Msg) (doneScreen, tea.Cmd) { return s, nil }
-func (s doneScreen) view() string                             { return "" }
+func (s doneScreen) update(msg tea.Msg) (doneScreen, tea.Cmd) {
+	if km, ok := msg.(tea.KeyMsg); ok {
+		switch km.String() {
+		case "q", "esc", "ctrl+c":
+			return s, tea.Quit
+		}
+		if !s.success && (km.String() == "r" || km.String() == "R") {
+			return s, transitionMsg(stageForm)
+		}
+	}
+	return s, nil
+}
+
+func (s doneScreen) view() string {
+	if s.success {
+		body := StyleSuccess.Render("Prescription created!") + "\n\n"
+		body += StyleSummaryKey.Render("ID:") + " " + s.id + "\n"
+		body += StyleSummaryKey.Render("Scheduled:") + " " + s.shifted + "\n"
+		body += "\n" + StyleSubtle.Render("press q to quit")
+		return StyleTitle.Render("prescriptioncli — done") + "\n" + StyleBox.Render(body)
+	}
+	body := StyleError.Render("Failed to create prescription") + "\n\n"
+	body += s.err + "\n\n"
+	body += StyleSubtle.Render("r to retry · q to quit")
+	return StyleTitle.Render("prescriptioncli — error") + "\n" + StyleBox.Render(body)
+}
