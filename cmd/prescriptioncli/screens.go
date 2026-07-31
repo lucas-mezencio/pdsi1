@@ -2,11 +2,16 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"regexp"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+var hhmmRe = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
 
 type loginSuccessMsg struct{ userID string }
 type loginErrMsg struct{ err error }
@@ -101,13 +106,113 @@ func (s loginScreen) view() string {
 	return StyleTitle.Render("prescriptioncli — login") + "\n" + body
 }
 
-type formScreen struct{}
+type formScreen struct {
+	inputs  [5]textinput.Model
+	focused int
+	err     string
+}
 
-func newFormScreen() formScreen { return formScreen{} }
+func newFormScreen() formScreen {
+	placeholders := [5]string{
+		"e.g. Aspirin",
+		"e.g. 100mg",
+		"e.g. 24:00",
+		"e.g. 08:00",
+		"e.g. 1",
+	}
+	var inputs [5]textinput.Model
+	for i := range inputs {
+		ti := textinput.New()
+		ti.Placeholder = placeholders[i]
+		ti.CharLimit = 64
+		inputs[i] = ti
+	}
+	inputs[0].Focus()
+	return formScreen{inputs: inputs, focused: 0}
+}
 
-func (s formScreen) update(msg tea.Msg) (formScreen, tea.Cmd) { return s, nil }
+func (s *formScreen) validate() (sessionData, error) {
+	name := s.inputs[0].Value()
+	dose := s.inputs[1].Value()
+	freq := s.inputs[2].Value()
+	start := s.inputs[3].Value()
+	dosesStr := s.inputs[4].Value()
+
+	if name == "" || dose == "" || freq == "" || start == "" || dosesStr == "" {
+		return sessionData{}, errors.New("all fields are required")
+	}
+	if !hhmmRe.MatchString(freq) {
+		return sessionData{}, fmt.Errorf("frequency must match HH:MM (24h), got %q", freq)
+	}
+	if !hhmmRe.MatchString(start) {
+		return sessionData{}, fmt.Errorf("start time must match HH:MM (24h), got %q", start)
+	}
+	var n int
+	if _, err := fmt.Sscanf(dosesStr, "%d", &n); err != nil || n <= 0 {
+		return sessionData{}, fmt.Errorf("doses must be a positive integer, got %q", dosesStr)
+	}
+	return sessionData{Name: name, Dosage: dose, Frequency: freq, StartTime: start, Doses: n}, nil
+}
+
+func (s formScreen) update(msg tea.Msg) (formScreen, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "tab", "down":
+			s.focused = (s.focused + 1) % 5
+		case "shift+tab", "up":
+			s.focused = (s.focused + 4) % 5
+		case "enter":
+			if s.focused < 4 {
+				s.focused++
+				s.inputs[s.focused-1].Blur()
+				s.inputs[s.focused].Focus()
+				return s, nil
+			}
+			data, err := s.validate()
+			if err != nil {
+				s.err = err.Error()
+				return s, nil
+			}
+			s.err = ""
+			return s, formSubmitCmd(data)
+		}
+	}
+
+	for i := range s.inputs {
+		if i == s.focused {
+			s.inputs[i].Focus()
+		} else {
+			s.inputs[i].Blur()
+		}
+	}
+	var cmd tea.Cmd
+	s.inputs[s.focused], cmd = s.inputs[s.focused].Update(msg)
+	return s, cmd
+}
+
+func formSubmitCmd(d sessionData) tea.Cmd {
+	return func() tea.Msg { return formSubmitMsg{data: d} }
+}
+
 func (s formScreen) view() string {
-	return StyleTitle.Render("prescriptioncli") + "\nform (coming soon)"
+	var body string
+	labels := [5]string{
+		"Medication name",
+		"Dose",
+		"Frequency (HH:MM)",
+		"Start time HH:MM (+3h on submit)",
+		"Doses",
+	}
+	for i := 0; i < 5; i++ {
+		body += StyleFieldLabel.Render(labels[i]) + "\n"
+		body += s.inputs[i].View() + "\n"
+	}
+	if s.err != "" {
+		body += "\n" + StyleError.Render(s.err)
+	}
+	body += "\n" + StyleSubtle.Render("tab/enter to advance · ctrl+c to quit")
+	return StyleTitle.Render("prescriptioncli — new prescription") + "\n" + body
 }
 
 type confirmScreen struct {
