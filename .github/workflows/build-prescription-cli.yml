@@ -8,6 +8,13 @@ on:
       - "go.mod"
       - "go.sum"
       - ".github/workflows/build-prescription-cli.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "cmd/prescriptioncli/**"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/build-prescription-cli.yml"
   workflow_dispatch:
     inputs:
       release:
