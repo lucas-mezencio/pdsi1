@@ -10,7 +10,7 @@ import (
 
 // TODO: replace with the UUID you seeded for Dr. Test Silva
 // (the doctor row must already exist in postgres before this CLI can submit).
-const defaultMedicID = "11111111-1111-1111-1111-111111111111"
+const defaultMedicID = "2d356f3b-b5ee-404c-b620-3f6905011915"
 
 const defaultAPI = "https://careconnect.lmezencio.dev/api/v1"
 
