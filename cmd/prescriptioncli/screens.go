@@ -57,6 +57,7 @@ func (s loginScreen) update(msg tea.Msg) (loginScreen, tea.Cmd) {
 		s.err = msg.err.Error()
 		s.password.SetValue("")
 		s.password.Focus()
+		s.email.Blur()
 		s.focused = 1
 		return s, nil
 	case tea.KeyMsg:
@@ -75,6 +76,17 @@ func (s loginScreen) update(msg tea.Msg) (loginScreen, tea.Cmd) {
 		}
 	}
 
+	// Sync textinput focus with s.focused. Mirrors formScreen.update() so the
+	// focused state persists back to m.login via the returned value. View()
+	// must stay pure — mutating there was the original bug.
+	if s.focused == 0 {
+		s.email.Focus()
+		s.password.Blur()
+	} else {
+		s.email.Blur()
+		s.password.Focus()
+	}
+
 	var cmd tea.Cmd
 	if s.focused == 0 {
 		s.email, cmd = s.email.Update(msg)
@@ -85,14 +97,6 @@ func (s loginScreen) update(msg tea.Msg) (loginScreen, tea.Cmd) {
 }
 
 func (s loginScreen) view() string {
-	if s.focused == 0 {
-		s.email.Focus()
-		s.password.Blur()
-	} else {
-		s.email.Blur()
-		s.password.Focus()
-	}
-
 	var body string
 	body += StyleFieldLabel.Render("Email") + "\n"
 	body += s.email.View() + "\n"

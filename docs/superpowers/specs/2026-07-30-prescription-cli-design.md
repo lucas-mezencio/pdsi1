@@ -101,6 +101,12 @@ Inline validation stays on the offending field:
 - `frequency` and `start time` must match `^([01]\d|2[0-3]):[0-5]\d$`.
 - `doses` must be `> 0`.
 
+**Screen focus convention (added 2026-07-30):** `View()` is pure — no
+mutations. Any `textinput.Focus()` / `textinput.Blur()` calls live in
+`Update()` so the focused state persists back to the parent `Model` via the
+returned value. `bubbles/textinput.Update` early-returns when the field is
+not focused, so a lost focus update silently drops every character key.
+
 ## 6. HTTP layer
 
 `api.go` exposes:
