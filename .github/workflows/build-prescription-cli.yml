@@ -1,0 +1,99 @@
+name: build-prescription-cli
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "cmd/prescriptioncli/**"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/build-prescription-cli.yml"
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish a GitHub Release with the binaries"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup-go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.3"
+          cache: true
+
+      - name: build
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            OUT=prescriptioncli-windows.exe
+          else
+            OUT=prescriptioncli-linux
+          fi
+          go build -trimpath -ldflags="-s -w" -o "$OUT" ./cmd/prescriptioncli
+
+      - name: upload-artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prescriptioncli-${{ matrix.os }}
+          path: |
+            prescriptioncli-linux
+            prescriptioncli-windows.exe
+          if-no-files-found: error
+
+  release:
+    name: publish release
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && inputs.release == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: download-linux
+        uses: actions/download-artifact@v4
+        with:
+          name: prescriptioncli-ubuntu-latest
+          path: dist/
+
+      - name: download-windows
+        uses: actions/download-artifact@v4
+        with:
+          name: prescriptioncli-windows-latest
+          path: dist/
+
+      - name: publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: prescription-cli-latest
+          name: prescription-cli (latest)
+          body: |
+            Latest build of the `prescriptioncli` demo runner.
+
+            - Linux: `prescriptioncli-linux`
+            - Windows: `prescriptioncli-windows.exe`
+
+            Usage:
+            ```
+            ./prescriptioncli-linux -secret "$DEMO_PRESCRIPTION_SECRET"
+            ```
+          files: |
+            dist/prescriptioncli-linux
+            dist/prescriptioncli-windows.exe
+          fail_on_unmatched_files: true
