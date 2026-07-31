@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // TODO: replace with the UUID you seeded for Dr. Test Silva
@@ -24,8 +26,13 @@ func main() {
 		os.Exit(2)
 	}
 
-	fmt.Printf("prescriptioncli starting\n")
-	fmt.Printf("  api:     %s\n", *apiURL)
-	fmt.Printf("  medic:   %s\n", *medicID)
-	fmt.Printf("  secret:  <set, %d chars>\n", len(*secret))
+	api := New(*apiURL, *secret)
+	SetCurrentAPI(&api)
+	SetCurrentMedicID(medicID)
+
+	p := tea.NewProgram(NewModel(api), tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
 }
